@@ -194,19 +194,20 @@ case class NtpMessage(
 			
 		val props = Map(
 			
-		    "Leap indicator:       " -> leapIndicator,
-			"Version:              " -> version,
-			"Mode:                 " -> mode,
-			"Stratum:              " -> stratum,
-			"Poll:                 " -> pollInterval,
-			"Precision:            " -> (precision + " (" + precisionStr + " seconds)"),
-			"Root delay:           " -> (rootFormat.format(rootDelay*1000) + " ms"),
-			"Root dispersion:      " -> (rootFormat.format(rootDispersion*1000) + " ms"),
-			"Reference identifier: " -> referenceIdStr,
-			"Reference timestamp:  " -> referenceTimestamp.toString,
-			"Originate timestamp:  " -> originateTimestamp.toString,
-			"Receive timestamp:    " -> receiveTimestamp.toString,
-			"Transmit timestamp:   " -> transmitTimestamp.toString
+		    "Leap indicator:        " -> leapIndicator,
+			"Version:               " -> version,
+			"Mode:                  " -> mode,
+			"Stratum:               " -> stratum,
+			"Poll:                  " -> pollInterval,
+			"Precision:             " -> (precision + " (" + precisionStr + " seconds)"),
+			"Root delay:            " -> (rootFormat.format(rootDelay*1000) + " ms"),
+			"Root dispersion:       " -> (rootFormat.format(rootDispersion*1000) + " ms"),
+			"Reference identifier:  " -> referenceIdStr,
+			"Reference timestamp:   " -> referenceTimestamp.toString,
+			"Originate timestamp:   " -> originateTimestamp.toString,
+			"Receive timestamp:     " -> receiveTimestamp.toString,
+			"Transmit timestamp:    " -> transmitTimestamp.toString,
+			"Destination timestamp: " -> destinationTimestamp.toString
 			
 			)
 			
@@ -218,19 +219,11 @@ case class NtpMessage(
 	private def toInt(b: Byte) : Int =
 		b.toInt & 0xff
 
-	
-	
-	
-	
-	
-
-    
-
     def localClockOffset : Timestamp =
         {
 		val clockOffset =
-			((receiveTimestamp      - originateTimestamp)  +
-			 (destinationTimestamp  - transmitTimestamp)) * 0.5
+			(transmitTimestamp    + receiveTimestamp )  * 0.5 -
+			(destinationTimestamp + originateTimestamp) * 0.5
 		
 		clockOffset
         }
@@ -332,11 +325,16 @@ class NtpClient(host: String) extends pedro.util.Logged
 
 object NtpClientTest
 {
+    def date(offset:Long = 0L) =
+	    {
+		new java.util.Date(System.currentTimeMillis + offset)
+		}
+		
     def test =
         {
         val host1 = "time-b.nist.gov"
         val host2 = "time.uh.edu"
-        val cli = new NtpClient(host1)
+        val cli = new NtpClient(host2)
         val res = cli.ping
         if (res.isEmpty)
             println("Test failed")
@@ -344,9 +342,9 @@ object NtpClientTest
             {
             val msg = res.get
             println("Received message! : \n" + msg)
-            val localClockOffset = msg.localClockOffset
-            println("Local clock offset: " +
-			    (new java.text.DecimalFormat("0.00")).format(localClockOffset.v*1000) + " ms")
+            val localClockOffset = (msg.localClockOffset.v * 1000).toLong
+            println("Local clock offset: " + localClockOffset + " ms")
+			println("I think the date is: " + date(localClockOffset))
             }
 
         }
