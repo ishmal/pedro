@@ -1,0 +1,63 @@
+<!--
+##########################################################################
+# Ant project for my little test application
+##########################################################################
+-->
+<project name="pedro" default="dist" basedir=".">
+
+    <description>
+        Pedro scala utilities
+    </description>
+
+
+    <!-- PROPERTIES -->
+    <property name="build"         location="build"/>
+    <property name="dist"          location="dist"/>
+    <property name="lib"           location="lib"/>
+    <property name="src"           location="src"/>
+    <property  environment="env"/>
+    <property name="scala.home"    value="${env.SCALA_HOME}"/>
+    <property name="scalalib"      value="${scala.home}/lib/scala-library.jar"/>
+
+    <!-- set classpath -->
+    <path id="project.class.path">
+        <pathelement location="${scalalib}"/>
+        <pathelement location="${scala.home}/lib/scala-swing.jar"/>
+        <fileset dir="${lib}">
+            <include name="*.jar"/>
+        </fileset>
+    </path>
+
+    <target name="init">
+        <taskdef resource="scala/tools/ant/antlib.xml">
+            <classpath>
+               <pathelement location="${scala.home}/lib/scala-compiler.jar"/>
+               <pathelement location="${scalalib}"/>
+            </classpath>
+        </taskdef>
+    </target>
+
+
+    <target name="build" description="Compile source to objects" depends="init">
+        <mkdir dir="${build}"/>
+    
+        <scalac srcdir="${src}" destdir="${build}" deprecation="on"
+            classpathref="project.class.path" force="never">
+        </scalac>
+    </target>
+
+
+    <target name="dist" description="Bundle results for distribution" depends="build">
+        <jar jarfile="${dist}/pedro.jar">
+            <fileset dir="${build}"/>
+        </jar>
+    </target>
+
+
+    <target name="clean" description="Clean up all generated objects">
+        <delete dir="${build}"/>
+        <delete dir="${dist}"/>
+    </target>
+
+
+</project>
