@@ -805,6 +805,29 @@ object JsonParser
             }
         }
 
+   /**
+     * Parse a file to a JsonValue.  Convenience method.
+     */
+    def parseFile(fname: String = "", debug: Boolean = false) : JsonResult =
+        {
+        try
+            {
+            val str = scala.io.Source.fromFile(fname).mkString
+            if (debug)
+                {
+                println("######################### From :" + fname)
+                println(str)
+                println("#########################")
+                }
+            parse(str, debug)
+            }
+        catch
+            {
+            case e: Exception => println("JsonParser.parseFile: " + e)
+            JsonError
+            }
+        }
+
 }
 
 

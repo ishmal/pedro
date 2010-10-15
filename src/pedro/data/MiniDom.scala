@@ -257,7 +257,7 @@ class Element(
 
 
 /**
- * 
+ * Utilities to assist in DOM creation.
  */ 
 object Element
 {
@@ -380,7 +380,19 @@ class XmlReader
             }
         catch
             {
-            case e: Exception => pedro.log.error("error:" + e) ; None
+            case e: Exception => pedro.log.error("parse:" + e) ; None
+            }
+        }
+
+    def parseFile(fname: String) : Option[Element] =
+        {
+        try
+            {
+            parse(scala.io.Source.fromFile(fname).mkString)
+            }
+        catch
+            {
+            case e: Exception => pedro.log.error("parseFile:" + e) ; None
             }
         }
 
@@ -392,7 +404,7 @@ class XmlReader
             }
         catch
             {
-            case e: Exception => pedro.log.error("error:" + e) ; None
+            case e: Exception => pedro.log.error("parseURL:" + e) ; None
             }
         }
 }
@@ -408,6 +420,9 @@ object XmlReader
 
     def parseURL(urls: String) : Option[Element] =
         (new XmlReader).parseURL(urls)
+
+    def parseFile(urls: String) : Option[Element] =
+        (new XmlReader).parseFile(urls)
 }
 
 

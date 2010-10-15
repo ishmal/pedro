@@ -718,3 +718,118 @@ object IrcClientTest
 
 }
 
+
+class IrcBot(configName: String = "ircbot.js")
+{
+    var host = "irc.freenode.net"
+    var port = 6667
+    var nick = "nonick"
+    var channel = "#scala"
+
+    def error(msg: String) =
+        pedro.log.error("IrcBot error: " + msg)
+
+    def trace(msg: String) =
+        pedro.log.error("IrcBot: " + msg)
+
+    def out(s: String) =
+        println(s)
+
+    val obs = actor
+        {
+        while (true)
+            {
+            receive
+                {
+                case IrcConnected(user, host) =>
+                    out("connected: " + user + " : " + host)
+                case IrcDisconnected(user, host) =>
+                    out("disconnected: " + user + " : " + host)
+                case IrcStatus(msg) =>
+                    out("status:" + msg)
+                case IrcChat(from, to, msg) =>
+                    out("from:" + from + " to:" + to + " msg:" + msg)
+                case IrcMotd(msg) =>
+                    out("motd:" + msg)
+                case IrcJoin(nick, channel) =>
+                    out("join:" + channel + " : " + nick)
+                case IrcPart(nick, channel) =>
+                    out("part:" + channel + " : " + nick)
+                case IrcNick(oldNick, newNick) =>
+                    out("nick: '" + oldNick + "' is now known as '" + newNick + "'")
+                case IrcQuit(user, fullid, msg) =>
+                    out("quit: " + user + " (" + fullid + ") has left irc : " + msg)
+                case IrcNotice(msg) =>
+                    out("notice: " + msg)
+                case IrcInfo(msg) =>
+                    out("info: " + msg)
+                case IrcMode(channel, mode) =>
+                    out("mode: " + channel + " : " + mode)
+                case IrcNameList(channel, names) =>
+                    out("names:" + channel + " : " + names.mkString(","))
+                case IrcChanList(channels) =>
+                    out("channels: " + channels.mkString(","))
+                case IrcWhoList(channel, users) =>
+                    out("who: " + channel + " : " + users.mkString(","))
+                case IrcCtcp(from, to, msg) =>
+                    out("from:"+from + " to:" + to + " msg:" + msg)
+                case IrcPing(from, to) =>
+                    out("from:"+from + " to:" + to)
+                case IrcAction(from, to, msg) =>
+                    out("from:"+from + " to:" + to + " msg:" + msg)
+                case IrcUrl(from, to, msg) =>
+                    out("from:"+from + " to:" + to + " msg:" + msg)
+                    java.awt.Desktop.getDesktop().browse(new java.net.URI(msg))
+                case IrcSound(from, to, msg) =>
+                    out("from:"+from + " to:" + to + " msg:" + msg)
+                case IrcVersion(from, to) =>
+                    out("from:"+from + " to:" + to)
+                }
+            }
+        }
+
+    def start : Boolean =
+        {
+        if (!getConfig)
+            false
+        else
+            {
+            trace("host: " + host)
+            trace("port: " + port)
+            trace("nick: " + nick)
+            trace("channel: " + channel)
+            val cli = new IrcClient(debug=true, host=host, port=port,
+                   nick=nick, channel="#scala", observer=obs)
+            cli.connect
+            }
+        }
+
+    def getConfig : Boolean =
+        {
+        pedro.data.JsonParser.parseFile(configName) match
+            {
+            case pedro.data.JsonSuccess(js) =>
+                host    = js("host")
+                port    = js("port")
+                nick    = js("nick")
+                channel = js("channel")
+                true
+            case pedro.data.JsonError =>
+                error("getConfig: could not load config file")
+                false
+            }
+        }
+
+}
+
+object IrcBot
+{
+    def doTest =
+        {
+        val bot = new IrcBot
+        bot.start
+        }
+    
+    def main(argv: Array[String]) =
+        doTest
+}
