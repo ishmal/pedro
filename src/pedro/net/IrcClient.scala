@@ -706,6 +706,7 @@ class IrcClientObserver extends Actor
         case IrcNone =>
         }
 
+
     private val defaultCallbacks : PartialFunction[Any, Unit] =
         {
         case IrcConnected(user, host) =>
