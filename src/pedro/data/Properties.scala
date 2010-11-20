@@ -34,20 +34,6 @@ package pedro.data
  */ 
 object Properties
 {
-    //bug workaround: copied from immutable.Map.scala
-    //remove when fixed
-    class WithDefault[A, +B](underlying: Map[A, B], d: A => B) extends Map[A, B] {
-        override def size = underlying.size
-        def get(key: A) = underlying.get(key) orElse Some(default(key))
-        def iterator = underlying.iterator
-        override def empty = new WithDefault(underlying.empty, d)
-        override def updated[B1 >: B](key: A, value: B1): WithDefault[A, B1] = new WithDefault[A, B1](underlying.updated[B1](key, value), d)
-        override def + [B1 >: B](kv: (A, B1)): WithDefault[A, B1] = updated(kv._1, kv._2)
-        def - (key: A): WithDefault[A, B] = new WithDefault(underlying - key, d)
-        override def default(key: A): B = d(key)
-    }
-
-
     def loadFile(fname: String) : Option[Map[String,String]] =
         {
         try
@@ -63,8 +49,7 @@ object Properties
                 val item = iter.next
                 vals += item.getKey.toString -> item.getValue.toString
                 }
-            val res = new WithDefault[String,String](vals.toMap, x => "")
-            Some(res)
+            Some(vals.toMap.withDefaultValue(""))
             }
         catch
             {
