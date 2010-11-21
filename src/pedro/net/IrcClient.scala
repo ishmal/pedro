@@ -716,7 +716,7 @@ class IrcClientObserver extends Actor
         case IrcStatus(msg) =>
             out("status:" + msg)
         case IrcChat(from, to, msg) =>
-            out("from:" + from + " to:" + to + " msg:" + msg)
+            out("chat from:" + from + " to:" + to + " msg:" + msg)
         case IrcMotd(msg) =>
             out("motd:" + msg)
         case IrcJoin(nick, channel) =>
@@ -740,27 +740,24 @@ class IrcClientObserver extends Actor
         case IrcWhoList(channel, users) =>
             out("who: " + channel + " : " + users.mkString(","))
         case IrcCtcp(from, to, msg) =>
-            out("from:"+from + " to:" + to + " msg:" + msg)
+            out("ctcp from:"+from + " to:" + to + " msg:" + msg)
         case IrcPing(from, to) =>
-            out("from:"+from + " to:" + to)
+            out("ping from:"+from + " to:" + to)
         case IrcAction(from, to, msg) =>
-            out("from:"+from + " to:" + to + " msg:" + msg)
+            out("action from:"+from + " to:" + to + " msg:" + msg)
         case IrcUrl(from, to, msg) =>
-            out("from:"+from + " to:" + to + " msg:" + msg)
+            out("url from:"+from + " to:" + to + " msg:" + msg)
             java.awt.Desktop.getDesktop().browse(new java.net.URI(msg))
         case IrcSound(from, to, msg) =>
-            out("from:"+from + " to:" + to + " msg:" + msg)
+            out("sound from:"+from + " to:" + to + " msg:" + msg)
         case IrcVersion(from, to) =>
-            out("from:"+from + " to:" + to)
+            out("version from:"+from + " to:" + to)
         }
 
     private def compoundPF[K,V](pfs: PartialFunction[K,V]*) : PartialFunction[K,V] =
         pfs.reduceLeft(_ orElse _)
 
-    def act =
-        {
-        while (true) receive(compoundPF(callbacks, defaultCallbacks))
-        }
+    def act = while (true) receive(compoundPF(callbacks, defaultCallbacks))
     
 }
 
