@@ -71,7 +71,7 @@ class IrcClient(
     val name: String    = "noname",
     val nick: String    = "nonick",
     val defaultChannel: String = "",
-    val observer: Actor = Actor.actor{},
+    val observer: Actor = new IrcClientObserver,
     val debug: Boolean  = false
     )
 {
@@ -843,6 +843,8 @@ class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
         }
 
 }
+
+
 
 object IrcBot
 {
