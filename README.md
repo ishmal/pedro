@@ -1,7 +1,9 @@
 # Pedro
+
 Pedro is a collection of small Scala network utilities with an emphasis on
-conciseness.  One of the goals is also reduction of dependencies. And we desire
-clarity of code for the purpose of instruction.
+conciseness.  Users will notice that each of the code modules is VERY small.
+We desire short, clear code for the purpose of instruction. One of the goals is
+also reduction of dependencies. 
 
 # Some of the modules you will find in this library
 
@@ -17,6 +19,10 @@ This is another alternative to what is in the Scala runtime.  This parser genera
 a tree of JsonValues, subclassed to their individual types.  It also has the ability
 to do projections.
 
+## pedro.data.Properties
+A simple wrapper of Java's Properties file, to allow Scala properties to be treated
+as a Map[String,String].
+
 ## pedro.net.OAuth
 This is a thin client that provides OAuth1 and OAuth2 authentication for HTTP GET
 and POST methods for whatever service you desire.  Examples are provided for 
@@ -31,3 +37,5 @@ example of using as a bot is provided.
 ## pedro.net.SoapClient
 This provides a super-simple SOAP client that wraps up am XML SOAP request, POSTs
 it to the target server, and returns the result.
+
+
