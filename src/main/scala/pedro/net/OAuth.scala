@@ -1,4 +1,3 @@
-
 /**
  *  This is a simple implementation of OAuth for Scala.
  *
@@ -22,7 +21,7 @@
  */   
 
 
-package pedro.data
+package pedro.net
 
 
 /**
