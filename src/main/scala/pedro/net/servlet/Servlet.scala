@@ -87,7 +87,7 @@ class Response(val self : HttpServletResponse)
 
 
 
-class ScalaServlet extends HttpServlet
+class Servlet extends HttpServlet
 {
     def realPath(fname: String) =
         getServletContext.getRealPath(fname)
@@ -122,7 +122,6 @@ class ScalaServlet extends HttpServlet
 
     override def service(req: HttpServletRequest, resp: HttpServletResponse) =
         {
-        val ins  = req.getReader
         val outs = resp.getWriter
 
         val newreq  = new Request(req)
@@ -157,22 +156,6 @@ class ScalaServlet extends HttpServlet
 
 }
 
-
-
-class TestServlet extends ScalaServlet
-{
-    override def doGet(in: Request, out: Response) =
-        {
-        out + "<html><body><h2>Request parameters</h2>\n"
-        out + "<table cols='2'>\n"
-        in.parameters.foreach(item =>
-            {
-            out + "<tr><td>"+item._1+"</td><td>"+item._2+"</td></tr>\n"
-            })
-        out + "</table>\n"
-        out + "</body></html>\n"
-        }
-}
 
 
 
