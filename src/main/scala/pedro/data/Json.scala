@@ -392,19 +392,19 @@ object Json
         {
         def convert(obj: Any) : JsonValue = obj match
             {
-            case v: String   => JsonString(v)
-            case v: Double   => JsonDouble(v)
-            case v: Float    => JsonDouble(v)
-            case v: Int      => JsonInt(v)
-            case v: Long     => JsonInt(v)
-            case v: Boolean  => JsonBoolean(v)
-            case v: Seq[_]   => toArray(v)
-            case v: Array[_] => toArray(v)
-            case v: Product  => toObject(v)
-            case _           => JsonNil  // error?
+            case v: String      => JsonString(v)
+            case v: Double      => JsonDouble(v)
+            case v: Float       => JsonDouble(v)
+            case v: Int         => JsonInt(v)
+            case v: Long        => JsonInt(v)
+            case v: Boolean     => JsonBoolean(v)
+            case v: Iterable[_] => toArray(v)
+            case v: Array[_]    => toArray(v)
+            case v: Product     => toObject(v)
+            case _              => JsonNil  // error?
             }
 
-        def toArray(arr: Seq[_]) : JsonArray =
+        def toArray(arr: Iterable[_]) : JsonArray =
             new JsonArray(arr.map(convert).toList)
 
         //TODO: recode this with Product when it no longer sucks
