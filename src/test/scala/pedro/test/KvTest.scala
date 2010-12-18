@@ -11,7 +11,8 @@ import org.scalatest.matchers.MustMatchers
 
 case class User(
     val id : String = "",
-    val name: String = ""
+    val name: String = "",
+    val tags : Array[String] = Array()
 )
 {}
 
@@ -27,6 +28,7 @@ object TestSchema extends Schema
         })
         {
         val byName = stringIndex("name")(js=>js("name"))
+        val byTag  = stringIndex("tags")(js=>js("tags"))
         }
 }
 
@@ -50,25 +52,25 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             result must be === true
 
             when("a new User is added")
-            val user1 = new User("rwj", "Bob Jamison")
+            val user1 = new User(id="rwj", tags=Array("big","tall"))
             result = store.put(users,user1.id,user1)
             then("the return value should be true")
             result must be === true
 
             when("a new User is added")
-            val user2 = new User("jd", "John Smith")
+            val user2 = new User(id="jd", tags=Array("handsome","gregarious"))
             result = store.put(users,user2.id,user2)
             then("the return value should be true")
             result must be === true
 
             when("a new User is added")
-            val user3 = new User("kb", "Kevin Bacon")
+            val user3 = new User(id="kb", tags=Array("dance","fever"))
             result = store.put(users,user3.id,user3)
             then("the return value should be true")
             result must be === true
 
             when("a user is queried")
-            val xs = store.query(users, users.byName, {s:String=> s.indexOf("Bob") >= 0})
+            val xs = store.query(users, users.byTag, {s:String=> s=="big"})
             then("the return value should be > 0")
             println("1#########"); xs.get.foreach(println)
             xs.isDefined must be === true
@@ -80,7 +82,7 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             result must be === true
             
             when("2 a user is queried after deletion")
-            val xs2 = store.query(users, users.byName, {s:String=> s.indexOf("Bob") >= 0})
+            val xs2 = store.query(users, users.byTag, {s:String=> s=="big"})
             then("the return value should be == 0")
             println("2######### "+ xs2.size); xs2.get.foreach(println)
             xs2.isDefined must be === true

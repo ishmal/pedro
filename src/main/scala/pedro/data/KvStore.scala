@@ -32,10 +32,13 @@ import java.lang.reflect.{Method,Modifier}
  * Indices are associated with a Kind, and are ways of indicating which fields
  * of the Kind data should be searchable. 
  */ 
-class Index[T<:Any](nam: String)(grab:(JsonValue)=>T)
+abstract class Index[T<:Any](nam: String)(grab:(JsonValue)=>JsonValue)
 {
     val name    = nam
-    val grabber = grab
+    //Grab the JsonValue that serializes the indexed value
+    val grabber = grab   
+    //Convert the JsonValue to the indexed type
+    def get(j:JsonValue) : T
 }
 
 /**
@@ -43,10 +46,22 @@ class Index[T<:Any](nam: String)(grab:(JsonValue)=>T)
  * with the only difference being that a put() that involves an array index will simply
  * be spread among multiple index entries
  */   
-class BooleanIndex(nam: String)(val grab:(JsonValue)=>Boolean) extends Index[Boolean](nam)(grab)
-class DoubleIndex (nam: String)(val grab:(JsonValue)=>Double)  extends Index[Double] (nam)(grab)
-class IntIndex    (nam: String)(val grab:(JsonValue)=>Int)     extends Index[Int]    (nam)(grab)
-class StringIndex (nam: String)(val grab:(JsonValue)=>String)  extends Index[String] (nam)(grab)
+class BooleanIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Boolean](nam)(grab)
+{
+    def get(j:JsonValue) : Boolean = j  //use inference!
+}
+class DoubleIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Double] (nam)(grab)
+{
+    def get(j:JsonValue) : Double = j
+}
+class IntIndex    (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Int]    (nam)(grab)
+{
+    def get(j:JsonValue) : Int = j
+}
+class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[String] (nam)(grab)
+{
+    def get(j:JsonValue) : String = j
+}
 
 /**
  * This relates closely to a SQL table, or a Kind in BigTable
@@ -54,35 +69,35 @@ class StringIndex (nam: String)(val grab:(JsonValue)=>String)  extends Index[Str
 class Kind[T<:Product](val name: String)(block:(JsonValue) => T)
 {
     private val indx = scala.collection.mutable.ListBuffer[Index[_]]()
-    
-    def booleanIndex(nam: String)(grab:(JsonValue)=>Boolean) =
+
+    def booleanIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new BooleanIndex(nam)(grab)
         indx += idx
         idx
         }
     
-    def doubleIndex(nam: String)(grab:(JsonValue)=>Double) =
+    def doubleIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new DoubleIndex(nam)(grab)
         indx += idx
         idx
         }
     
-    def intIndex(nam: String)(grab:(JsonValue)=>Int) =
+    def intIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new IntIndex(nam)(grab)
         indx += idx
         idx
         }
     
-    def stringIndex(nam: String)(grab:(JsonValue)=>String) =
+    def stringIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new StringIndex(nam)(grab)
         indx += idx
         idx
         }
-    
+
     def indices = indx.toList
 
     def toString(data: T) : String = Json.toJson(data).toString
@@ -304,14 +319,14 @@ class JdbcKvStore(
                 trace("put delete index: " + stmt.toString)
                 val rs = stmt.executeUpdate
                 stmt.close
-                val jsx = js match
+                val jsx = i.grabber(js) match
                     {
                     case v:JsonArray => v.toList
                     case _           => List(js)
                     }
                 jsx.foreach(j=>
                     {
-                    val v = i.grabber(j)
+                    val v = i.get(j)
                     sql = "insert into " + name + " (id,value) values(?,?)"
                     stmt = conn.get.prepareStatement(sql)
                     stmt.setString(1, id)
@@ -376,6 +391,7 @@ class JdbcKvStore(
                  " where id in " + ids.map(_=>"?").mkString("(", ",",")")
             stmt = conn.get.prepareStatement(sql)
             ids.zipWithIndex.foreach(s=> stmt.setString(s._2+1, s._1))
+            trace("query: " + stmt.toString)
             rs = stmt.executeQuery
             while (rs.next)
                 {
