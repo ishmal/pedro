@@ -250,7 +250,7 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
         {
         var comma = ""
         buf.append('{')
-        value.toList.foreach(a=>
+        value.toList.sortWith((a,b) => a._1<b._1).foreach(a=>
             {
             buf.append(comma)
             jsonStr(buf, a._1)
@@ -266,7 +266,7 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
         val startln = "\n" + (" "*indent)
         var comma = ""
         buf.append(startln).append("{")
-        value.foreach(e =>
+        value.toList.sortWith((a,b) => a._1<b._1).foreach(e =>
             {
             buf.append(comma).append(startln)
             jsonStr(buf, e._1)
