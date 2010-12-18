@@ -298,6 +298,12 @@ class JdbcKvStore(
                 {
                 val name = kind.name + "_" + i.name
                 trace("index: " + name)
+                sql = "delete from " + name + " where id=?"
+                stmt = conn.get.prepareStatement(sql)
+                stmt.setString(1, id)
+                trace("put delete index: " + stmt.toString)
+                val rs = stmt.executeUpdate
+                stmt.close
                 val jsx = js match
                     {
                     case v:JsonArray => v.toList
@@ -306,13 +312,10 @@ class JdbcKvStore(
                 jsx.foreach(j=>
                     {
                     val v = i.grabber(j)
-                    sql = if (exists(name, id))
-                        "update " + name + " set value=? where id=?"
-                    else
-                        "insert into " + name + " (value,id) values(?,?)"
+                    sql = "insert into " + name + " (id,value) values(?,?)"
                     stmt = conn.get.prepareStatement(sql)
-                    stmt.setObject(1, v)
-                    stmt.setString(2, id)
+                    stmt.setString(1, id)
+                    stmt.setObject(2, v)
                     trace("put index: " + stmt.toString)
                     val rs = stmt.executeUpdate
                     stmt.close
