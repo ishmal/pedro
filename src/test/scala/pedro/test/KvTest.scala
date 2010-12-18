@@ -26,7 +26,7 @@ object TestSchema extends Schema
             )
         })
         {
-        val users_name = stringIndex("name")(js=>js("name"))
+        val byName = stringIndex("name")(js=>js("name"))
         }
 }
 
@@ -68,7 +68,7 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             result must be === true
 
             when("a user is queried")
-            val xs = store.query(users, users.users_name, {s:String=> s.indexOf("Bob") >= 0})
+            val xs = store.query(users, users.byName, {s:String=> s.indexOf("Bob") >= 0})
             then("the return value should be > 0")
             println("1#########"); xs.get.foreach(println)
             xs.isDefined must be === true
@@ -80,7 +80,7 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             result must be === true
             
             when("2 a user is queried after deletion")
-            val xs2 = store.query(users, users.users_name, {s:String=> s.indexOf("Bob") >= 0})
+            val xs2 = store.query(users, users.byName, {s:String=> s.indexOf("Bob") >= 0})
             then("the return value should be == 0")
             println("2######### "+ xs2.size); xs2.get.foreach(println)
             xs2.isDefined must be === true
