@@ -112,7 +112,7 @@ class Kind[T<:Data](val name: String)(jsToData:(JsonValue) => T)
 
     def toString(data: T) : String = Json.toJson(data).toString
     
-    def fromJs(js: JsonValue) : T =
+    def fromJson(js: JsonValue) : T =
         jsToData(js)
     
     def fromString(str: String) : Option[T] =
