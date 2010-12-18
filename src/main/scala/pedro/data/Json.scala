@@ -222,11 +222,16 @@ trait JsonValue
  */ 
 object JsonValue
 {
-    implicit def json2double(j:JsonValue)  : Double  = j.d
-    implicit def json2long(j:JsonValue)    : Long    = j.i
-    implicit def json2int(j:JsonValue)     : Int     = j.i.toInt
-    implicit def json2string(j:JsonValue)  : String  = j.s
-    implicit def json2boolean(j:JsonValue) : Boolean = j.b
+    implicit def json2boolean(j:JsonValue)    : Boolean      = j.b
+    implicit def json2booleanSeq(j:JsonValue) : Seq[Boolean] = j.map(_.b)
+    implicit def json2double(j:JsonValue)     : Double       = j.d
+    implicit def json2doubleSeq(j:JsonValue)  : Seq[Double]  = j.map(_.d)
+    implicit def json2int(j:JsonValue)        : Int          = j.i.toInt
+    implicit def json2intSeq(j:JsonValue)     : Seq[Int]     = j.map(_.i.toInt)
+    implicit def json2long(j:JsonValue)       : Long         = j.i
+    implicit def json2longSeq(j:JsonValue)    : Seq[Long]    = j.map(_.i)
+    implicit def json2string(j:JsonValue)     : String       = j.s
+    implicit def json2stringSeq(j:JsonValue)  : Seq[String]  = j.map(_.s)
 }
 
 
