@@ -46,3 +46,12 @@ object Log
     def error(fmt: String, args: Any*) = logger.severe(fmt.format(args))
     
 }
+
+trait Logged
+{
+    def error(msg: String) =
+        Log.error(getClass.getName + " error : " + msg)
+
+    def trace(msg: String) =
+        Log.trace(getClass.getName + " : " + msg)
+}
