@@ -76,7 +76,7 @@ class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[S
 /**
  * This relates closely to a SQL table, or a Kind in BigTable
  */ 
-class Kind[T<:Data](val name: String)(block:(JsonValue) => T)
+class Kind[T<:Data](val name: String)(jsToData:(JsonValue) => T)
 {
     private val indx = scala.collection.mutable.ListBuffer[Index[_]]()
 
@@ -112,11 +112,14 @@ class Kind[T<:Data](val name: String)(block:(JsonValue) => T)
 
     def toString(data: T) : String = Json.toJson(data).toString
     
+    def fromJs(js: JsonValue) : T =
+        jsToData(js)
+    
     def fromString(str: String) : Option[T] =
         {
         JsonParser.parse(str) match
             {
-            case JsonSuccess(js) => Some(block(js))
+            case JsonSuccess(js) => Some(jsToData(js))
             case _ => None
             }
         }
