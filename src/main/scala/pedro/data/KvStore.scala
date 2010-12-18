@@ -29,18 +29,61 @@ import java.lang.reflect.{Method,Modifier}
 
 
 /**
+ * Indices are associated with a Kind, and are ways of indicating which fields
+ * of the Kind data should be searchable. 
+ */ 
+class Index[T<:Any](nam: String)(grab:(JsonValue)=>T)
+{
+    val name    = nam
+    val grabber = grab
+}
+
+/**
+ * The types of indices we handle.  Note that JsonArrays of these will be handled the same way,
+ * with the only difference being that a put() that involves an array index will simply
+ * be spread among multiple index entries
+ */   
+class BooleanIndex(nam: String)(val grab:(JsonValue)=>Boolean) extends Index[Boolean](nam)(grab)
+class DoubleIndex (nam: String)(val grab:(JsonValue)=>Double)  extends Index[Double] (nam)(grab)
+class IntIndex    (nam: String)(val grab:(JsonValue)=>Int)     extends Index[Int]    (nam)(grab)
+class StringIndex (nam: String)(val grab:(JsonValue)=>String)  extends Index[String] (nam)(grab)
+
+/**
  * This relates closely to a SQL table, or a Kind in BigTable
  */ 
 class Kind[T<:Product](val name: String)(block:(JsonValue) => T)
 {
-    lazy val indices =
+    private val indx = scala.collection.mutable.ListBuffer[Index[_]]()
+    
+    def booleanIndex(nam: String)(grab:(JsonValue)=>Boolean) =
         {
-        val methods = getClass.getMethods.map(m=>(m.getName, m)).toMap
-        val fields  = getClass.getDeclaredFields.collect
-            {case f if Modifier.isPrivate(f.getModifiers) => f.getName}.toSet
-        val vals = methods.filterKeys(fields)
-        vals.valuesIterator.map(_.invoke(this)).collect{case i: Index[_] => i}
+        val idx = new BooleanIndex(nam)(grab)
+        indx += idx
+        idx
         }
+    
+    def doubleIndex(nam: String)(grab:(JsonValue)=>Double) =
+        {
+        val idx = new DoubleIndex(nam)(grab)
+        indx += idx
+        idx
+        }
+    
+    def intIndex(nam: String)(grab:(JsonValue)=>Int) =
+        {
+        val idx = new IntIndex(nam)(grab)
+        indx += idx
+        idx
+        }
+    
+    def stringIndex(nam: String)(grab:(JsonValue)=>String) =
+        {
+        val idx = new StringIndex(nam)(grab)
+        indx += idx
+        idx
+        }
+    
+    def indices = indx.toList
 
     def toString(data: T) : String = Json.toJson(data).toString
     
@@ -56,32 +99,14 @@ class Kind[T<:Product](val name: String)(block:(JsonValue) => T)
 
 
 
-/**
- * Indices are associated with a Kind, and are ways of indicating which fields
- * of the Kind data should be searchable. 
- */ 
-class Index[T<:Any](nam: String)(grab:(JsonValue)=>T)
+
+
+
+
+
+class Schema
 {
-    val name    = nam
-    val grabber = grab
-}
-
-
-/**
- * The types of indices we handle.  Note that JsonArrays of these will be handled the same way,
- * with the only difference being that a put() that involves an array index will simply
- * be spread among multiple index entries
- */   
-class BooleanIndex(nam: String)(val grab:(JsonValue)=>Boolean) extends Index[Boolean](nam)(grab)
-class DoubleIndex (nam: String)(val grab:(JsonValue)=>Double)  extends Index[Double] (nam)(grab)
-class IntIndex    (nam: String)(val grab:(JsonValue)=>Int)     extends Index[Int]    (nam)(grab)
-class StringIndex (nam: String)(val grab:(JsonValue)=>String)  extends Index[String] (nam)(grab)
-
-
-
-trait Schema
-{
-
+    
     lazy val kinds =
         {
         val methods = getClass.getMethods.map(m=>(m.getName, m)).toMap
@@ -92,6 +117,8 @@ trait Schema
         }
 
 }
+
+
 
 /**
  * This defines all fields and methods that should be implemented in a 
@@ -109,14 +136,14 @@ trait KvStore
     def delete[T <: Product](kind: Kind[T], id: String): Boolean
 }
 
-class JdbcKvStore extends KvStore with pedro.util.Logged
+class JdbcKvStore(
+    val jdbcDriver : String = "org.h2.Driver",
+    val jdbcUrl    : String = "jdbc:h2:pedro",
+    val jdbcUser   : String = "sa",
+    val jdbcPass   : String = ""
+)  extends KvStore with pedro.util.Logged
 {
-    val jdbcUrl  = "jdbc:h2:pedro"
-    val jdbcUser = "ishmal"
-    val jdbcPass = "flamingo"
     var conn : Option[java.sql.Connection] = None
-    
-
     private def checkConnect =
         {
         if (conn.isEmpty || conn.get.isClosed)
@@ -129,6 +156,7 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
          {
          try
              {
+             Class.forName(jdbcDriver)
              conn = Some(java.sql.DriverManager.getConnection(jdbcUrl, jdbcUser, jdbcPass))
              true
              }
@@ -162,33 +190,61 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
         if (!checkConnect) return false
         schema.kinds.foreach(k=>
             {
-            var stmt = conn.get.prepareStatement("drop table " + k.name)
-            stmt.execute
-            trace(stmt.toString)
-            stmt = conn.get.prepareStatement("create table " + k.name + 
-                " (id varchar(128) primary key, value text not null)")
-            stmt.execute
-            trace(stmt.toString)
+            try
+                {
+                val stmt = conn.get.prepareStatement("drop table " + k.name)
+                stmt.execute
+                trace(stmt.toString)
+                }
+            catch
+                {
+                case e:Exception => trace("drop: no table:" + e)
+                }
+            try
+                {
+                val stmt = conn.get.prepareStatement("create table " + k.name + 
+                    " (id varchar(128) primary key, value text not null)")
+                stmt.execute
+                trace(stmt.toString)
+                }
+            catch
+                {
+                case e:Exception => error("create:" + e) ; return false
+                }
             k.indices.foreach(i=>
                 {
                 val name = k.name + "_" + i.name
-                stmt = conn.get.prepareStatement("drop table " + name)
-                stmt.execute
-                trace(stmt.toString)
-                stmt = i match
+                try
                     {
-                    case v:BooleanIndex => conn.get.prepareStatement("create table " + name +
-                         " id varchar(128) not null, value boolean not null)")
-                    case v:DoubleIndex  => conn.get.prepareStatement("create table " + name +
-                         " id varchar(128) not null, value float not null)")
-                    case v:IntIndex     => conn.get.prepareStatement("create table " + name +
-                         " id varchar(128) not null, value integer not null)")
-                    case v:StringIndex  => conn.get.prepareStatement("create table " + name +
-                         " id varchar(128) not null, value text not null)")
-                    case _ => error("create: unknown index type") ; return false
+                    val stmt = conn.get.prepareStatement("drop table " + name)
+                    stmt.execute
+                    trace(stmt.toString)
                     }
-                stmt.execute
-                trace(stmt.toString)
+                catch
+                    {
+                    case e:Exception => trace("drop index:" + e)                  
+                    }
+                try
+                    {
+                    val stmt = i match
+                        {
+                        case v:BooleanIndex => conn.get.prepareStatement("create table " + name +
+                             " (id varchar(128) not null, value boolean not null)")
+                        case v:DoubleIndex  => conn.get.prepareStatement("create table " + name +
+                             " (id varchar(128) not null, value float not null)")
+                        case v:IntIndex     => conn.get.prepareStatement("create table " + name +
+                             " (id varchar(128) not null, value integer not null)")
+                        case v:StringIndex  => conn.get.prepareStatement("create table " + name +
+                             " (id varchar(128) not null, value text not null)")
+                        case _ => error("create: unknown index type") ; return false
+                        }
+                    stmt.execute
+                    trace(stmt.toString)
+                    }
+                catch
+                    {
+                    case e:Exception => error("create index:" + e) ; return false                    
+                    }
                 })
             })
         true
@@ -227,18 +283,21 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
         try
             {
             val js = Json.toJson(data)
+            trace("json: " + js.toString + "   indices:" + kind.indices.size)
             var sql = if (exists(kind.name, id))
                 "update " + kind.name + " set value=? where id=?"
             else
                 "insert into " + kind.name + " (value,id) values(?,?)"
             var stmt = conn.get.prepareStatement(sql)
-            stmt.setString(1, js)
+            stmt.setString(1, js.toString)
             stmt.setString(2, id)
+            trace("put:" + stmt.toString)
             val rs = stmt.executeUpdate
             stmt.close
             kind.indices.foreach(i=>
                 {
                 val name = kind.name + "_" + i.name
+                trace("index: " + name)
                 val jsx = js match
                     {
                     case v:JsonArray => v.toList
@@ -247,13 +306,14 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
                 jsx.foreach(j=>
                     {
                     val v = i.grabber(j)
-                    sql = if (exists(i.name, id))
-                        "update " + i.name + " set value=? where id=?"
+                    sql = if (exists(name, id))
+                        "update " + name + " set value=? where id=?"
                     else
-                        "insert into " + i.name + " (value,id) values(?,?)"
+                        "insert into " + name + " (value,id) values(?,?)"
                     stmt = conn.get.prepareStatement(sql)
                     stmt.setObject(1, v)
                     stmt.setString(2, id)
+                    trace("put index: " + stmt.toString)
                     val rs = stmt.executeUpdate
                     stmt.close
                     })
@@ -294,7 +354,8 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
         try
             {
             val ids = scala.collection.mutable.ListBuffer[String]()
-            var stmt = conn.get.prepareStatement("select id,value from " + index.name)
+            val iname = kind.name + "_" + index.name
+            var stmt = conn.get.prepareStatement("select id,value from " + iname)
             var rs = stmt.executeQuery
             while (rs.next)
                 {
@@ -308,13 +369,16 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
                 }
             stmt.close
             val res = scala.collection.mutable.ListBuffer[T]()
-            val sql = "select value from " + kind.name + " where id in " + ids.mkString("('","','","')")
+            val sql = "select value from " + kind.name +
+                 " where id in " + ids.map(_=>"?").mkString("(", ",",")")
             stmt = conn.get.prepareStatement(sql)
-            ids.zipWithIndex.foreach(s=>stmt.setString(s._2+1, s._1))
+            ids.zipWithIndex.foreach(s=> stmt.setString(s._2+1, s._1))
             rs = stmt.executeQuery
             while (rs.next)
                 {
-                val v = kind.fromString(rs.getString(1))
+                val s = rs.getString(1)
+                println("s:" + s)
+                val v = kind.fromString(s)
                 if (v.isDefined) res.append(v.get)
                 }
             stmt.close
@@ -322,7 +386,7 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
             }
         catch
             {
-            case e:Exception => error("query: " + e)
+            case e:Exception => error("query: " + e + ":" + e.printStackTrace)
                 None
             }        
         }
@@ -357,50 +421,6 @@ class JdbcKvStore extends KvStore with pedro.util.Logged
 }
 
 
-
-//########################################################################
-//# T E S T
-//########################################################################
-
-
-case class User(
-    val id : String = "",
-    val name: String = ""
-)
-{}
-
-
-object TestSchema extends Schema
-{
-    val users = new Kind[User]("users")(js=>
-        {
-        User(
-            id=js("id"),
-            name=js("name")
-            )
-        })
-        {
-        val users_name = new StringIndex("name")(js=>js("name"))
-        }
-}
-
-
-
-object KVTest
-{
-    
-
-
-    def doTest =
-        {
-        val store = new JdbcKvStore
-        store.create(TestSchema)     
-        }
-
-    def main(argv: Array[String]) =
-        doTest
-
-}
 
 //########################################################################
 //# E N D
