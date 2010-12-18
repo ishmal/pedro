@@ -1,7 +1,7 @@
 
 
 
-package scala.test
+package pedro.test
 
 import pedro.data.{Schema,StringIndex,Kind,JdbcKvStore}
 
