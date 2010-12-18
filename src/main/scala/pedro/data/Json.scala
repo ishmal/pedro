@@ -817,7 +817,7 @@ object JsonParser
         {
         try
             {
-            val str = scala.io.Source.fromFile(fname).mkString
+            val str = scala.io.Source.fromFile(fname)("UTF-8").mkString
             if (debug)
                 {
                 println("######################### From :" + fname)

@@ -28,6 +28,16 @@ package pedro.data
 import java.lang.reflect.{Method,Modifier}
 
 
+trait Data extends Product
+{
+    val id: String
+
+    def toJson = Json.toJson(this).toString
+
+    override def toString = toJson
+}
+
+
 /**
  * Indices are associated with a Kind, and are ways of indicating which fields
  * of the Kind data should be searchable. 
@@ -66,7 +76,7 @@ class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[S
 /**
  * This relates closely to a SQL table, or a Kind in BigTable
  */ 
-class Kind[T<:Product](val name: String)(block:(JsonValue) => T)
+class Kind[T<:Data](val name: String)(block:(JsonValue) => T)
 {
     private val indx = scala.collection.mutable.ListBuffer[Index[_]]()
 
@@ -145,10 +155,10 @@ trait KvStore
     def disconnect : Boolean
     def create(schema: Schema) : Boolean
     def exists(name: String, id: String) : Boolean
-    def put[T <: Product](kind: Kind[T], id: String, data: T) : Boolean
-    def get[T <: Product](kind: Kind[T], id: String): Option[T]
-    def query[T<:Product, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]]
-    def delete[T <: Product](kind: Kind[T], id: String): Boolean
+    def put[T <: Data](kind: Kind[T], data: T) : Boolean
+    def get[T <: Data](kind: Kind[T], id: String): Option[T]
+    def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]]
+    def delete[T <: Data](kind: Kind[T], id: String): Boolean
 }
 
 class JdbcKvStore(
@@ -292,20 +302,20 @@ class JdbcKvStore(
     /**
      * Determines is a keyed value already exists
      */         
-    def put[T <: Product](kind: Kind[T], id: String, data: T) : Boolean =
+    def put[T <: Data](kind: Kind[T], data: T) : Boolean =
         {
         if (!checkConnect) return false
         try
             {
             val js = Json.toJson(data)
             trace("json: " + js.toString + "   indices:" + kind.indices.size)
-            var sql = if (exists(kind.name, id))
+            var sql = if (exists(kind.name, data.id))
                 "update " + kind.name + " set value=? where id=?"
             else
                 "insert into " + kind.name + " (value,id) values(?,?)"
             var stmt = conn.get.prepareStatement(sql)
             stmt.setString(1, js.toString)
-            stmt.setString(2, id)
+            stmt.setString(2, data.id)
             trace("put:" + stmt.toString)
             val rs = stmt.executeUpdate
             stmt.close
@@ -315,7 +325,7 @@ class JdbcKvStore(
                 trace("index: " + name)
                 sql = "delete from " + name + " where id=?"
                 stmt = conn.get.prepareStatement(sql)
-                stmt.setString(1, id)
+                stmt.setString(1, data.id)
                 trace("put delete index: " + stmt.toString)
                 val rs = stmt.executeUpdate
                 stmt.close
@@ -329,7 +339,7 @@ class JdbcKvStore(
                     val v = i.get(j)
                     sql = "insert into " + name + " (id,value) values(?,?)"
                     stmt = conn.get.prepareStatement(sql)
-                    stmt.setString(1, id)
+                    stmt.setString(1, data.id)
                     stmt.setObject(2, v)
                     trace("put index: " + stmt.toString)
                     val rs = stmt.executeUpdate
@@ -345,7 +355,7 @@ class JdbcKvStore(
             }
         }
     
-    def get[T <: Product](kind: Kind[T], id: String): Option[T] =
+    def get[T <: Data](kind: Kind[T], id: String): Option[T] =
         {
         if (!checkConnect) return None
         try
@@ -367,7 +377,7 @@ class JdbcKvStore(
             }        
         }
     
-    def query[T<:Product, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]] =
+    def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]] =
         {
         try
             {
@@ -411,7 +421,7 @@ class JdbcKvStore(
         }
 
 
-    def delete[T <: Product](kind: Kind[T], id: String): Boolean =
+    def delete[T <: Data](kind: Kind[T], id: String): Boolean =
         {
         if (!checkConnect) return false
         try

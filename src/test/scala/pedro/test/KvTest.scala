@@ -3,7 +3,7 @@
 
 package pedro.test
 
-import pedro.data.{Schema,StringIndex,Kind,JdbcKvStore}
+import pedro.data.{Data,Schema,StringIndex,Kind,JdbcKvStore}
 
 import org.scalatest.{FeatureSpec,GivenWhenThen}
 import org.scalatest.matchers.MustMatchers
@@ -13,7 +13,7 @@ case class User(
     val id : String = "",
     val name: String = "",
     val tags : Array[String] = Array()
-)
+) extends Data
 {}
 
 
@@ -53,19 +53,19 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 
             when("a new User is added")
             val user1 = new User(id="rwj", tags=Array("big","tall"))
-            result = store.put(users,user1.id,user1)
+            result = store.put(users,user1)
             then("the return value should be true")
             result must be === true
 
             when("a new User is added")
             val user2 = new User(id="jd", tags=Array("handsome","gregarious"))
-            result = store.put(users,user2.id,user2)
+            result = store.put(users,user2)
             then("the return value should be true")
             result must be === true
 
             when("a new User is added")
             val user3 = new User(id="kb", tags=Array("dance","fever"))
-            result = store.put(users,user3.id,user3)
+            result = store.put(users,user3)
             then("the return value should be true")
             result must be === true
 
