@@ -76,7 +76,7 @@ class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[S
 /**
  * This relates closely to a SQL table, or a Kind in BigTable
  */ 
-class Kind[T<:Data](val name: String)(jsToData:(JsonValue) => T)
+class Kind[+T<:Data](val name: String)(jsToData:(JsonValue) => T)
 {
     private val indx = scala.collection.mutable.ListBuffer[Index[_]]()
 
@@ -110,7 +110,7 @@ class Kind[T<:Data](val name: String)(jsToData:(JsonValue) => T)
 
     def indices = indx.toList
 
-    def toString(data: T) : String = Json.toJson(data).toString
+    //def toString(data: T) : String = Json.toJson(data).toString
     
     def fromJson(js: JsonValue) : T =
         jsToData(js)
@@ -131,21 +131,13 @@ class Kind[T<:Data](val name: String)(jsToData:(JsonValue) => T)
 
 
 
-
-class Schema
+trait Schema
 {
+    protected val kbuf = scala.collection.mutable.ListBuffer[Kind[Data]]()
     
-    lazy val kinds =
-        {
-        val methods = getClass.getMethods.map(m=>(m.getName, m)).toMap
-        val fields  = getClass.getDeclaredFields.collect
-            {case f if Modifier.isPrivate(f.getModifiers) => f.getName}.toSet
-        val vals = methods.filterKeys(fields)
-        vals.valuesIterator.map(_.invoke(this)).collect{case k: Kind[_] => k}
-        }
-
+    def kinds = kbuf.toList
+    
 }
-
 
 
 /**

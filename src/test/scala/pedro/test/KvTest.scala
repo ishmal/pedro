@@ -13,9 +13,8 @@ case class User(
     val id : String = "",
     val name: String = "",
     val tags : Array[String] = Array()
-) extends Data
+) extends pedro.data.Data
 {}
-
 
 object TestSchema extends Schema
 {
@@ -27,10 +26,12 @@ object TestSchema extends Schema
             )
         })
         {
+        kbuf.append(this)
         val byName = stringIndex("name")(js=>js("name"))
         val byTag  = stringIndex("tags")(js=>js("tags"))
         }
 }
+
 
 import TestSchema._
 
