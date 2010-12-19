@@ -135,6 +135,12 @@ trait Schema
 {
     protected val kbuf = scala.collection.mutable.ListBuffer[Kind[Data]]()
     
+    def add[T<:Data](kind: Kind[T]) : Kind[T] =
+        {
+        kbuf += kind
+        kind
+        }
+    
     def kinds = kbuf.toList
     
 }

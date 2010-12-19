@@ -18,7 +18,7 @@ case class User(
 
 object TestSchema extends Schema
 {
-    val users = new Kind[User]("users")(js=>
+    val users = new Kind("users")(js=>
         {
         User(
             id=js("id"),
@@ -26,7 +26,7 @@ object TestSchema extends Schema
             )
         })
         {
-        kbuf.append(this)
+        add(this)
         val byName = stringIndex("name")(js=>js("name"))
         val byTag  = stringIndex("tags")(js=>js("tags"))
         }

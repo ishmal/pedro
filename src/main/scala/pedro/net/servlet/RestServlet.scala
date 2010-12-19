@@ -80,7 +80,13 @@ trait ResourceHandler
 
 class RestServlet extends Servlet
 {
-    val restHandlers = Map[String, ResourceHandler]()
+    val handlers = scala.collection.mutable.Map[String, ResourceHandler]()
+    
+    def add(resourceType: String, handler: ResourceHandler) : ResourceHandler =
+        {
+        handlers += resourceType -> handler
+        handler
+        }
 
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
@@ -101,7 +107,7 @@ class RestServlet extends Servlet
             {
             val resourceType = words(0)
             val resourceName = if (words.size >= 2) words(1) else ""
-            val handler = restHandlers.get(resourceType)
+            val handler = handlers.get(resourceType)
             if (!handler.isDefined)
                 {
                 //404 is the much beloved "Not found"
