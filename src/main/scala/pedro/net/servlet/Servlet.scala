@@ -26,6 +26,8 @@ package pedro.net.servlet
 import java.io.{Reader,Writer}
 import javax.servlet.http._
 
+
+
 /**
  * Yes, there have been scala wrappers of Servlet stuff before, with 
  * limited success. The purpose of this package is twofold:
@@ -142,6 +144,7 @@ class Servlet extends HttpServlet
         outs.flush
         }
 
+    //slow, but only happens once at init() time
     lazy val initParameters = 
         {
         val parms = scala.collection.mutable.Map[String,String]()
@@ -154,6 +157,71 @@ class Servlet extends HttpServlet
         parms.toMap.withDefaultValue("")
         }
 
+}
+
+
+class FilterChain(val self: javax.servlet.FilterChain)
+{
+    def filter(request: Request, response: Response) =
+        self.doFilter(request.self, response.self)        
+}
+
+class FilterConfig(val self: javax.servlet.FilterConfig)
+{
+    def filterName = self.getFilterName
+    
+    //slow, but only happens once at init() time
+    lazy val initParameters = 
+        {
+        val parms = scala.collection.mutable.Map[String,String]()
+        val names = self.getInitParameterNames
+        while (names.hasMoreElements)
+            {
+            val name = names.nextElement.asInstanceOf[String]
+            parms += name -> self.getInitParameter(name)
+            }  
+        parms.toMap.withDefaultValue("")
+        }
+
+    def apply(name: String) =  initParameters.getOrElse(name, "")
+    
+    def servletContext = self.getServletContext
+}
+
+
+class Filter extends javax.servlet.Filter
+{
+    //Override this
+    def init(config: FilterConfig) =
+        {
+        
+        }
+    
+    //Override this
+    def filter(request: Request, response: Response, chain: FilterChain) =
+        {
+        
+        }
+    
+
+    override def init(config: javax.servlet.FilterConfig)
+        {
+        init(new FilterConfig(config))
+        } 
+    
+    override def doFilter(req: javax.servlet.ServletRequest,
+        resp: javax.servlet.ServletResponse, 
+        chain: javax.servlet.FilterChain)
+        {
+        val newreq  = new Request(req.asInstanceOf[HttpServletRequest])
+        val newresp = new Response(resp.asInstanceOf[HttpServletResponse])
+        val newfilt = new FilterChain(chain)
+        filter(newreq, newresp, newfilt)
+        }
+    
+    override def destroy =
+        {
+        }
 }
 
 
