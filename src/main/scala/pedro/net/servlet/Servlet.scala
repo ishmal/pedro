@@ -69,6 +69,7 @@ class Request(val self : HttpServletRequest)
 
     def apply(key: String) =
         parameters(key)
+        
 }
 
 
@@ -202,12 +203,13 @@ class Filter extends javax.servlet.Filter
         {
         
         }
-    
 
-    override def init(config: javax.servlet.FilterConfig)
-        {
+    def forward(url: String, request: Request, response: Response) =
+        request.self.getRequestDispatcher(url).forward(request.self, response.self)
+
+
+    override def init(config: javax.servlet.FilterConfig) =
         init(new FilterConfig(config))
-        } 
     
     override def doFilter(req: javax.servlet.ServletRequest,
         resp: javax.servlet.ServletResponse, 
