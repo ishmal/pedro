@@ -1,5 +1,5 @@
 /**
- * Pyx tiny web framework
+ * Tiny web templating package
  *
  * Authors:
  *   Bob Jamison
