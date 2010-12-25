@@ -26,8 +26,6 @@
 package pedro.net.servlet
 
 
-
-
 import javax.servlet.ServletException
 
 
@@ -36,13 +34,14 @@ import javax.servlet.ServletException
  * Provide a means to transform the xml output of a servlet
  * into the xml described by an XSLT stylesheet
  */  
-class XsltFilter extends Filter
+class XsltFilter extends Filter with pedro.util.Logged
 {
     var filterName = ""
 
     var templates: Option[javax.xml.transform.Templates] = None
 
-
+    private val factory = javax.xml.transform.TransformerFactory.newInstance
+ 
     /**
      * Called by the web container to indicate to a filter
      * that it is being placed into service.
@@ -58,27 +57,8 @@ class XsltFilter extends Filter
             throw new ServletException("XsltFilter '" +
                 filterName + "' requires 'xsltFile' parameter")
 
-        val factory = javax.xml.transform.TransformerFactory.newInstance
-        try
-            {
-            val reader = new java.io.FileReader(absolutePath)
-            templates = Some(factory.newTemplates(new javax.xml.transform.stream.StreamSource(reader)))
-            }
-        catch
-            {
-            case ioe : java.io.IOException =>
-                throw new ServletException("XsltFilter '" + filterName + "' loading file '" +
-        		                absolutePath + "' :" + ioe)
-            case tce : javax.xml.transform.TransformerConfigurationException =>
-                throw new ServletException("XsltFilter '" + filterName + "' loading file '" +
-        		                xsltFile + "' : " +
-        					    tce.getMessageAndLocation)
-            }
-
+        templates = loadFile(absolutePath).flatMap(loadTemplate)
         }
-
-
-
 
     def dumpBuf(buf: Array[Byte]) =
         {
@@ -94,6 +74,61 @@ class XsltFilter extends Filter
             }
         }
 
+    def loadTemplate(templ: String) : Option[javax.xml.transform.Templates] =
+        {
+        try
+            {
+            val bais = new java.io.ByteArrayInputStream(templ.getBytes)
+            Some(factory.newTemplates(new javax.xml.transform.stream.StreamSource(bais)))
+            }
+        catch
+            {
+            case e : javax.xml.transform.TransformerConfigurationException =>
+                    error("XsltFilter loadTemplate: " + e.getMessageAndLocation)
+                None
+            }
+        
+        }
+    
+    def loadFile(fname: String) : Option[String] =
+        {
+        try
+            {
+            Some(scala.io.Source.fromFile(fname)("UTF-8").mkString)
+            }
+        catch
+            {
+            case e : java.io.IOException => error("loadTempleteFile: " + e)
+                None
+            }
+        }
+    
+    /**
+     * Public, so it's testable    
+     */     
+    def transform(inb: Array[Byte]) : Option[Array[Byte]] =
+        {
+        val bais   = new java.io.ByteArrayInputStream(inb)
+        val source = new javax.xml.transform.stream.StreamSource(bais)
+        val baos   = new java.io.ByteArrayOutputStream
+        val result = new javax.xml.transform.stream.StreamResult(baos)
+    
+        //Transform
+        try
+            {
+            val transformer = templates.get.newTransformer
+            transformer.transform(source, result)
+            Some(baos.toByteArray)
+            }
+         catch
+             {
+             case e : javax.xml.transform.TransformerException =>
+                 throw new ServletException(
+                     "XsltFilter '" + filterName + "' : " + e)
+             None
+             }
+        }
+
     /**
      * The doFilter method of the Filter is called by the container each time
      * a request/response pair is passed through the chain due to a client
@@ -106,55 +141,18 @@ class XsltFilter extends Filter
     		          "' cannot be used.  It was not configured properly")
                 
         val bufferedResp = new BufferedResponse(resp.self)
-        try
-            {
-            chain.filter(req, bufferedResp)
-            }
-        catch
-            {
-            case ioe: java.io.IOException =>
-                throw new ServletException(
-                    "XsltFilter '" + filterName + "' : " + ioe)
-            }
-        
-        //Make input and output buffered streams
-        val outxml = bufferedResp.get
-        dumpBuf(outxml)
-        val bais = new java.io.ByteArrayInputStream(outxml)
-        val transSource = new javax.xml.transform.stream.StreamSource(bais)
-        val baos = new java.io.ByteArrayOutputStream
-        val transResult = new javax.xml.transform.stream.StreamResult(baos)
-    
-        //Now transform
-        try
-            {
-            val transformer = templates.get.newTransformer
-            transformer.transform(transSource, transResult)
-            }
-         catch
-             {
-             case e : javax.xml.transform.TransformerException =>
-                 throw new ServletException(
-                     "XsltFilter '" + filterName + "' : " + e)
-             }
-        
-        //Finally, output the transformed data
-        try
-            {
-            val obuf =  baos.toByteArray
-            resp.setContentLength(obuf.length)
-            resp + obuf
-            }
-        catch
-            {
-            case e: java.io.IOException => 
-                throw new ServletException(
-                    "XsltFilter '" + filterName + "' : " + e)
-            }
-    
-    
-        }
+        chain.filter(req, bufferedResp)
 
+        //Make input and output buffered streams
+        val rawxml = bufferedResp.get
+        //dumpBuf(rawxml)
+        val transxml = transform(rawxml)
+        if (transxml.isDefined)
+            {
+            resp.setContentLength(transxml.get.length)
+            resp + transxml.get
+            }
+        }
 
 
 

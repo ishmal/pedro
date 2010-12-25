@@ -32,14 +32,8 @@ package pedro.net.servlet
  * to register new tags at startup time
  */    
 
-abstract class Tag(parent: Tags)
+abstract class Tag(parent: Tags) extends pedro.util.Logged
 {
-    def error(msg: String) =
-        parent.error(msg)
-
-    def trace(msg: String) =
-        parent.trace(msg)
-
     private val hex = "0123456789abcdef".toCharArray
 
     def xmlStr(ins: String)  =
@@ -72,7 +66,7 @@ abstract class Tag(parent: Tags)
 //# D E F A U L T    T A G S
 //#############################################################################
 
-case class ArticleTag(parent: Tags) extends Tag(parent)
+case class TimeTag(parent: Tags) extends Tag(parent)
 {
     def apply(attrs: Map[String,String], indent: String) : String =
         {
@@ -105,14 +99,15 @@ class Tags extends pedro.util.Logged
      * to add tags to this list at startup time
      */              
     var tags = Map[String, Tag](
-        "article"  -> ArticleTag(this)
+        "time" -> TimeTag(this)
         )
 
-    def registerTag(name: String, newtag: Tag) =
-        tags += name -> newtag
+
+    def registerTag(name: String, tag: Tag) =
+        tags += name -> tag
 
     def registerTags(newtags: Map[String, Tag]) =
-        tags ++= tags
+        tags ++= newtags
 
     def apply(name: String, attrs: Map[String, String], col: Int) : String =
         {
@@ -120,7 +115,7 @@ class Tags extends pedro.util.Logged
         if (tag.isDefined)
             {
             val spaces = " "*col
-            tag.get.apply(attrs, spaces)
+            tag.get(attrs, spaces)//construct, then use
             }
         else
             {
@@ -132,9 +127,12 @@ class Tags extends pedro.util.Logged
     def processStream(ins: java.io.InputStream) : Option[String] =
         (new Templater(this)).processStream(ins)
         
-
 }
 
+
+/**
+ * Parent object for Tags and TemplateServlets
+ */ 
 object Tags extends Tags
 {
     

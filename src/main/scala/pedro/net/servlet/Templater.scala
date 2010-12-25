@@ -151,7 +151,7 @@ class ErrorHandler(parent: Templater) extends org.xml.sax.ErrorHandler
  */  
 class Templater(parent: Tags) extends pedro.util.Logged
 {
-    val tagNamespace = "templater.namespace"
+    val tagNamespace = "tags.namespace"
     val header = "<root xmlns:t=\"" + tagNamespace + "\">"
     val footer = "</root>"
     
