@@ -128,6 +128,10 @@ class XsltFilter extends Filter with pedro.util.Logged
              None
              }
         }
+    
+    //caching.
+    var lastOut  = Array[Byte]()
+    var lastHash = Array[Byte]()
 
     /**
      * The doFilter method of the Filter is called by the container each time
@@ -145,12 +149,20 @@ class XsltFilter extends Filter with pedro.util.Logged
 
         //Make input and output buffered streams
         val rawxml = bufferedResp.get
-        //dumpBuf(rawxml)
-        val transxml = transform(rawxml)
-        if (transxml.isDefined)
+        val hash = java.security.MessageDigest.getInstance("SHA").digest(rawxml)
+        if (java.security.MessageDigest.isEqual(lastHash, hash))
+            resp + lastOut
+        else
             {
-            resp.setContentLength(transxml.get.length)
-            resp + transxml.get
+            //dumpBuf(rawxml)
+            val transxml = transform(rawxml)
+            if (transxml.isDefined)
+                {
+                resp.setContentLength(transxml.get.length)
+                resp + transxml.get
+                lastOut = transxml.get
+                lastHash = hash
+                }
             }
         }
 
