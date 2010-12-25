@@ -95,10 +95,11 @@ class Handler(parent: Templater) extends org.xml.sax.ext.DefaultHandler2
         for (i <- 0 until jattrs.getLength)
             mp += (jattrs.getLocalName(i) -> jattrs.getValue(i))
         val attrs = mp.toMap.withDefaultValue("")
-        if (uri == parent.tagNamespace)
+        if (uri == parent.namespace) //Is this in our namespace? "pedro.tags"
             {
             val col = if (locator.isDefined) locator.get.getColumnNumber else 0
-            buf.append(parent.outputTag(localName, attrs, col))    
+            val xmlSnippet = parent.apply(localName, attrs, col) //THIS IS THE MAGIC
+            buf.append(xmlSnippet)    
             }
         else if (qName != "root")
             {
@@ -124,7 +125,7 @@ class Handler(parent: Templater) extends org.xml.sax.ext.DefaultHandler2
 
     override def endElement(uri: String, localName: String, qName: String) =
         {
-        if (uri != parent.tagNamespace && qName != "root")
+        if (uri != parent.namespace && qName != "root")
             {
             buf.append("</")
             xmlStr(qName)
@@ -134,21 +135,22 @@ class Handler(parent: Templater) extends org.xml.sax.ext.DefaultHandler2
 }
 
 
+
 /**
  * Read a file or buffer of XML and perform any possible substitutions
- * according to tags.  Reference back to the parent Pyx engine in order
- * to use its resources.
+ * according to tags.  Reference back to the parent Tags registry in order
+ * to use its namespace and process() method.
  */  
 class Templater(parent: Tags) extends pedro.util.Logged
 {
-    val tagNamespace = "tags.namespace"
+    val namespace = parent.namespace
     
-    def outputTag(name: String, attrs: Map[String, String], col: Int) : String =
+    //This is the method that actually grabs the xml snippet for the tag
+    def apply(name: String, attrs: Map[String, String], col: Int) : String =
         parent.apply(name, attrs, col)
 
     def process(buf: String) : Option[String] =
         {
-
         val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
         parser.setFeature("http://xml.org/sax/features/validation", false)
         parser.setFeature("http://xml.org/sax/features/namespaces", true)
@@ -165,7 +167,6 @@ class Templater(parent: Tags) extends pedro.util.Logged
         try
             {
             parser.parse(src)
-            trace("ok")
             Some(handler.buf.toString)
             }
         catch

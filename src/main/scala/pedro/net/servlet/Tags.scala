@@ -93,6 +93,8 @@ case object DateTag extends Tag
  */ 
 class Tags extends pedro.util.Logged
 {
+    val namespace = "pedro.tags"
+
     /**
      * We want to allow external classfiles and jars
      * to add tags to this list at startup time
