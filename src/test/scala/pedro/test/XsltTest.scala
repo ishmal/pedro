@@ -1,42 +1,37 @@
-/**
- * Sands small business data assistant.
- *
- *
- * Authors:
- *   Bob Jamison
- *
- * Copyright (C) 2010 Bob Jamison
- *
- *  This library is free software; you can redistribute it and/or
- *  modify it under the terms of the GNU Lesser General Public
- *  License as published by the Free Software Foundation; either
- *  version 2.1 of the License, or (at your option) any later version.
- *
- *  This library is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- *  Lesser General Public License for more details.
- *
- *  You should have received a copy of the GNU Lesser General Public
- *  License along with this library; if not, write to the Free Software
- *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- */
+package pedro.test
+
+import pedro.net.servlet._
+
+import org.scalatest.{FeatureSpec,GivenWhenThen}
+import org.scalatest.matchers.MustMatchers
+ 
 
 
-package sands.test
-
-
-
-/**
- *
- */
-class XsltTest extends pedro.net.servlet.Servlet
+class XsltSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 {
+    feature("The XsltFilter must be able to transform xml")
+        {
+        scenario("The filter converts a Docbook doc to html")
+            {
+            given("an xslt filter")
+            val filter = new XsltFilter
+            when("the xsl template for docbook is loaded")
+            val xslName = "src/test/resources/doc2html.xsl"
+            filter.templates = filter.loadFile(xslName).flatMap(filter.loadTemplate)
+            then("templates should be defined")
+            filter.templates.isDefined must be === true
+            val docName = "src/test/resources/crystalegg.docbook"
+            val inbuf = scala.io.Source.fromFile(docName)("UTF-8").mkString
+            when("transform is performed")
+            val result = filter.transform(inbuf.getBytes)
+            then("the return value should be defined")
+            result.isDefined must be === true
+            println(new String(result.get))
+            }
 
-
+    
+        }
 
 }
-//########################################################################
-//# E N D    O F    F I L E
-//########################################################################
+
 
