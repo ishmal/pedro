@@ -32,8 +32,10 @@ package pedro.net.servlet
  * to register new tags at startup time
  */    
 
-abstract class Tag(parent: Tags) extends pedro.util.Logged
+trait Tag extends pedro.util.Logged
 {
+    val name : String
+
     private val hex = "0123456789abcdef".toCharArray
 
     def xmlStr(ins: String)  =
@@ -66,17 +68,14 @@ abstract class Tag(parent: Tags) extends pedro.util.Logged
 //# D E F A U L T    T A G S
 //#############################################################################
 
-case class TimeTag(parent: Tags) extends Tag(parent)
+case object TimeTag extends Tag
 {
+    val name = "time"
+
     def apply(attrs: Map[String,String], indent: String) : String =
         {
-        val count = attrs("count").toInt
-        val buf = new StringBuilder
-        buf.append("\n" + indent + "<ul>\n")
-        for (i <- 0 until count)
-            buf.append(indent + "    <li>The quick brown fox " + i + " times</li>\n")
-        buf.append(indent + "</ul>\n")
-        buf.toString        
+        val date = new java.util.Date
+        xmlStr(date.toString)
         }
 }
 
@@ -99,12 +98,12 @@ class Tags extends pedro.util.Logged
      * to add tags to this list at startup time
      */              
     var tags = Map[String, Tag](
-        "time" -> TimeTag(this)
+        TimeTag.name -> TimeTag
         )
 
 
-    def registerTag(name: String, tag: Tag) =
-        tags += name -> tag
+    def registerTag(tag: Tag) =
+        tags += tag.name -> tag
 
     def registerTags(newtags: Map[String, Tag]) =
         tags ++= newtags
