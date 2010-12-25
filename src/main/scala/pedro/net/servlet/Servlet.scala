@@ -108,16 +108,16 @@ class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
 {
     private val baos = new java.io.ByteArrayOutputStream
 
-    private val writer = new java.io.PrintWriter(
-        new java.io.OutputStreamWriter(new java.io.ByteArrayOutputStream))
-
     def get =
         baos.toByteArray
 
     override val self = new javax.servlet.http.HttpServletResponseWrapper(selfArg)
         {
-        override def getWriter =
-            writer
+        override def getOutputStream =
+            new javax.servlet.ServletOutputStream
+                {
+                override def write(ch:Int) = baos.write(ch)
+                }
         }
 
 }
