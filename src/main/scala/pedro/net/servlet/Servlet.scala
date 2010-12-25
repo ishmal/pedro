@@ -76,16 +76,50 @@ class Request(val self : HttpServletRequest)
 
 class Response(val self : HttpServletResponse)
 {
-    val writer = self.getWriter
+    
+    def setContentLength(len: Int) =
+        self.setContentLength(len)
+
+    def setContentType(typ: String) =
+        self.setContentType(typ)
 
     def +(msg: String) : Response =
         {
-        writer.write(msg)
+        self.getOutputStream.write(msg.getBytes)
+        this
+        }
+    
+    def +(msg: Array[Byte]) : Response =
+        {
+        self.getOutputStream.write(msg)
         this
         }
     
     def sendError(code: Int, msg: String) =
         self.sendError(code, msg)
+}
+
+
+/**
+ * This class wraps a response that we pass to a servlet.  It
+ * catches the servlet's output, which we can then post-process
+ */  
+class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
+{
+    private val baos = new java.io.ByteArrayOutputStream
+
+    private val writer = new java.io.PrintWriter(
+        new java.io.OutputStreamWriter(new java.io.ByteArrayOutputStream))
+
+    def get =
+        baos.toByteArray
+
+    override val self = new javax.servlet.http.HttpServletResponseWrapper(selfArg)
+        {
+        override def getWriter =
+            writer
+        }
+
 }
 
 
@@ -169,7 +203,7 @@ class FilterChain(val self: javax.servlet.FilterChain)
 
 class FilterConfig(val self: javax.servlet.FilterConfig)
 {
-    def filterName = self.getFilterName
+    def name = self.getFilterName
     
     //slow, but only happens once at init() time
     lazy val initParameters = 
