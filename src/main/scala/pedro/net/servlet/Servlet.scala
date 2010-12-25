@@ -48,7 +48,7 @@ class Session(val self: HttpSession)
 
 class Request(val self : HttpServletRequest)
 {
-    val reader = self.getReader
+    lazy val reader = self.getReader
 
     val parameters =
         {
@@ -159,8 +159,6 @@ class Servlet extends HttpServlet
 
     override def service(req: HttpServletRequest, resp: HttpServletResponse) =
         {
-        val outs = resp.getWriter
-
         val newreq  = new Request(req)
         val newresp = new Response(resp)
 
@@ -176,7 +174,7 @@ class Servlet extends HttpServlet
                 resp.sendError(405, "unsupported HTTP method '" + req.getMethod + "'")
                 }
             }
-        outs.flush
+        resp.getOutputStream.flush
         }
 
     //slow, but only happens once at init() time

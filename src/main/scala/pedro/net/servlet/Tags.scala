@@ -68,9 +68,9 @@ trait Tag extends pedro.util.Logged
 //# D E F A U L T    T A G S
 //#############################################################################
 
-case object TimeTag extends Tag
+case object DateTag extends Tag
 {
-    val name = "time"
+    val name = "date"
 
     def apply(attrs: Map[String,String], indent: String) : String =
         {
@@ -98,7 +98,7 @@ class Tags extends pedro.util.Logged
      * to add tags to this list at startup time
      */              
     var tags = Map[String, Tag](
-        TimeTag.name -> TimeTag
+        DateTag.name -> DateTag
         )
 
 

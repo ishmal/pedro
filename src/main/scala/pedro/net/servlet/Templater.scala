@@ -133,16 +133,6 @@ class Handler(parent: Templater) extends org.xml.sax.ext.DefaultHandler2
         }
 }
 
-class ErrorHandler(parent: Templater) extends org.xml.sax.ErrorHandler
-{
-    override def error(e: org.xml.sax.SAXParseException)
-        {}
-    override def fatalError(e: org.xml.sax.SAXParseException)
-        {}
-    override def warning(e: org.xml.sax.SAXParseException)
-        {}
-}
-
 
 /**
  * Read a file or buffer of XML and perform any possible substitutions
@@ -152,28 +142,30 @@ class ErrorHandler(parent: Templater) extends org.xml.sax.ErrorHandler
 class Templater(parent: Tags) extends pedro.util.Logged
 {
     val tagNamespace = "tags.namespace"
-    val header = "<root xmlns:t=\"" + tagNamespace + "\">"
-    val footer = "</root>"
     
     def outputTag(name: String, attrs: Map[String, String], col: Int) : String =
         parent.apply(name, attrs, col)
 
     def process(buf: String) : Option[String] =
         {
-        val str = header + "\n" + buf + "\n" + footer + "\n"
+
         val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
-        //make sure that xmlns attributes are passed through
+        parser.setFeature("http://xml.org/sax/features/validation", false)
+        parser.setFeature("http://xml.org/sax/features/namespaces", true)
         parser.setFeature("http://xml.org/sax/features/namespace-prefixes", true)
-        parser.setFeature("http://xml.org/sax/features/xmlns-uris", true)
         val handler = new Handler(this)
         parser.setContentHandler(handler)
-        parser.setProperty("http://xml.org/sax/properties/lexical-handler", handler)
-        val errorHandler = new ErrorHandler(this)
-        parser.setErrorHandler(errorHandler)
-        val src = new org.xml.sax.InputSource(new java.io.StringReader(str))
+        parser.setEntityResolver(new org.xml.sax.EntityResolver
+            {
+            override def resolveEntity(publicId: String, systemId: String) =
+                new org.xml.sax.InputSource(new java.io.StringReader(""))
+   
+            })
+        val src = new org.xml.sax.InputSource(new java.io.StringReader(buf))
         try
             {
             parser.parse(src)
+            trace("ok")
             Some(handler.buf.toString)
             }
         catch
