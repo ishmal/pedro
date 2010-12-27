@@ -102,7 +102,12 @@ class Response(val self : HttpServletResponse)
 
 /**
  * This class wraps a response that we pass to a servlet.  It
- * catches the servlet's output, which we can then post-process
+ * buffers the output of the previous member (servlet or filter) of the filter chain,
+ * which we can then post-process.  This avoids the needs for pipes.
+ * Example:
+ *       val buf = new BufferedResponse(currentResponse)
+ *       filterChain.filter(request, buf)
+ *       val bytes = buf.get  
  */  
 class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
 {
@@ -117,6 +122,38 @@ class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
             new javax.servlet.ServletOutputStream
                 {
                 override def write(ch:Int) = baos.write(ch)
+                }
+        }
+}
+
+
+/**
+ * This subclass of Response will buffer the output of the previous member of the
+ * FilterChain.   It will also compute a hash during buffering in order to produce
+ * one efficiently at the end of buffering.  Having a computed hash of what's in the
+ * buffer is an aid in caching.   
+ * Example:
+ *       val buf = new BufferedResponse(currentResponse)
+ *       filterChain.filter(request, buf)
+ *       val bytes = buf.get  
+ *       val hash  = buf.hash 
+ */  
+class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
+{
+    private val baos = new java.io.ByteArrayOutputStream
+
+    private val md = java.security.MessageDigest.getInstance("SHA")
+    
+    def hash = md.digest
+
+    def get = baos.toByteArray
+
+    override val self = new javax.servlet.http.HttpServletResponseWrapper(selfArg)
+        {
+        override def getOutputStream =
+            new javax.servlet.ServletOutputStream
+                {
+                override def write(ch:Int) = { md.update(ch.toByte) ; baos.write(ch) }
                 }
         }
 

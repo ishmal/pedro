@@ -421,6 +421,9 @@ object Json
 
         toObject(obj)
         }
+    
+    def toString(obj:Product) =
+        toJson(obj).toString
 
     private val doubleMatcher = "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r
 
@@ -446,26 +449,34 @@ object Json
 
 trait JsonResult
 {
-    def isDefined : Boolean
+    def isDefined = !isEmpty
+    def isEmpty : Boolean
     def get : JsonValue
+    def flatMap[B](f: JsonValue => Option[B]): Option[B] = 
+        if (isEmpty) None else f(this.get)
+    def foreach[B](f: JsonValue => Option[B]) =
+        if (!isEmpty) f(this.get)
+    def collect[B](pf: PartialFunction[JsonValue, B]): Option[B] =
+        if (!isEmpty && pf.isDefinedAt(this.get)) Some(pf(this.get)) else None  
+
 }
 
 case class JsonSuccess(v: JsonValue) extends JsonResult
 {
-    def isDefined = true
-    def get       = v
+    def isEmpty = false
+    def get     = v
 }
 
 case object JsonNone extends JsonResult
 {
-    def isDefined = true
-    def get       = throw new NoSuchElementException("JsonNone.get")
+    def isEmpty = true
+    def get     = throw new NoSuchElementException("JsonNone.get")
 }
 
 case object JsonError extends JsonResult
 {
-    def isDefined = false
-    def get       = throw new NoSuchElementException("JsonError.get")
+    def isEmpty = true
+    def get     = throw new NoSuchElementException("JsonError.get")
 }
 
 /**

@@ -46,9 +46,9 @@ trait ResourceHandler
 
     /**
      * Used for creating an item.
-     * usage:  POST /resourceType <cr> data     
+     * usage:  POST /resourceType <cr> data=value    
      */         
-    def doPost(req: Request, resp: Response, resourceName: String) =
+    def doPost(req: Request, resp: Response) =
         {
         }
 
@@ -87,6 +87,14 @@ class RestServlet extends Servlet
         handlers += resourceType -> handler
         handler
         }
+    
+    /**
+     * Override this to perform authorization on your specific application
+     */         
+    def auth(req: Request) : Boolean =
+        {
+        true
+        }
 
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
@@ -118,22 +126,31 @@ class RestServlet extends Servlet
                 {
                 val newreq  = new Request(req)
                 val newresp = new Response(resp)
-                method match
+                if (auth(newreq))
                     {
-                    case "PUT" =>
-                        handler.get.doPut(newreq, newresp, resourceName)
-                    case "POST" =>
-                        handler.get.doPost(newreq, newresp, resourceName)
-                    case "GET" =>
-                        handler.get.doGet(newreq, newresp, resourceName)
-                    case "DELETE" =>
-                        handler.get.doDelete(newreq, newresp, resourceName)
-                    case _ =>
+                    method match
                         {
-                        //405 is "method not allowed"
-                        resp.sendError(405, "unsupported HTTP method '" + method + "'")
-                        //logit("unsupported")
+                        case "PUT" =>
+                            handler.get.doPut(newreq, newresp, resourceName)
+                        case "POST" =>
+                            handler.get.doPost(newreq, newresp)
+                        case "GET" =>
+                            handler.get.doGet(newreq, newresp, resourceName)
+                        case "DELETE" =>
+                            handler.get.doDelete(newreq, newresp, resourceName)
+                        case _ =>
+                            {
+                            //405 is "method not allowed"
+                            resp.sendError(405, "unsupported HTTP method '" + method + "'")
+                            //logit("unsupported")
+                            }
                         }
+                    }
+                else
+                    {
+                    //401 is "not authorized"
+                    resp.sendError(401, "not authorized for api. please log in")
+                    //logit("not authorized")
                     }
                 }//servlet.isDefined
             }//words.size

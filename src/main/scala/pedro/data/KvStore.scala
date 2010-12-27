@@ -158,6 +158,7 @@ trait KvStore
     def exists(name: String, id: String) : Boolean
     def put[T <: Data](kind: Kind[T], data: T) : Boolean
     def get[T <: Data](kind: Kind[T], id: String): Option[T]
+    def list[T<:Data](kind: Kind[T]) : Option[Seq[T]]
     def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]]
     def delete[T <: Data](kind: Kind[T], id: String): Boolean
 }
@@ -378,6 +379,30 @@ class JdbcKvStore(
             }        
         }
     
+    def list[T<:Data](kind: Kind[T]) : Option[Seq[T]] =
+        {
+        try
+            {
+            val res = scala.collection.mutable.ListBuffer[T]()
+            var stmt = conn.get.prepareStatement("select value from " + kind.name)
+            var rs = stmt.executeQuery
+            while (rs.next)
+                {
+                val s = rs.getString(1)
+                val v = kind.fromString(s)
+                if (v.isDefined) res.append(v.get)
+                }
+            stmt.close
+            Some(res.toList)            
+            }
+        catch
+            {
+            case e:Exception => error("list: " + e + ":" + e.printStackTrace)
+                None
+            }        
+        }
+
+
     def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]] =
         {
         try
