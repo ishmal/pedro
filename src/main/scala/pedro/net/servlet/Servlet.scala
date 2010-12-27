@@ -50,6 +50,20 @@ class Request(val self : HttpServletRequest)
 {
     lazy val reader = self.getReader
 
+    //useful for PUT
+    def read : String =
+        {
+        val buf = new java.io.ByteArrayOutputStream
+        val ins = self.getInputStream
+        var ch = ins.read
+        while (ch >= 0)
+            {
+            buf.write(ch)
+            ch = ins.read
+            }
+        new String(buf.toByteArray)
+        }
+
     val parameters =
         {
         val parms  = scala.collection.mutable.Map[String,String]()

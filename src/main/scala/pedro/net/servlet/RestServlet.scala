@@ -95,7 +95,7 @@ class RestServlet extends Servlet
         {
         true
         }
-
+    
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
         val outs = resp.getWriter
