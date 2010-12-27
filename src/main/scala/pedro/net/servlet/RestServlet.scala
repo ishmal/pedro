@@ -1,5 +1,5 @@
 /**
- * Sands small business data assistant.
+ * Simple Servlet tools.
  *
  *
  * Authors:
