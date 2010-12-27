@@ -46,7 +46,7 @@ class Session(val self: HttpSession)
 
 
 
-class Request(val self : HttpServletRequest)
+class Request(val self : HttpServletRequest, val auth:Auth = AuthNone)
 {
     lazy val reader = self.getReader
 

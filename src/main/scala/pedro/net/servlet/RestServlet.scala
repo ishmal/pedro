@@ -88,12 +88,10 @@ class RestServlet extends Servlet
         handler
         }
     
-    /**
-     * Override this to perform authorization on your specific application
-     */         
-    def auth(req: Request) : Boolean =
+    def getAuth(req: HttpServletRequest) : Option[Auth] =
         {
-        true
+        val obj = Some(req.getSession.getAttribute("auth"))
+        obj.collect{case a:Auth => a}
         }
     
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
@@ -124,10 +122,11 @@ class RestServlet extends Servlet
                 }
             else
                 {
-                val newreq  = new Request(req)
-                val newresp = new Response(resp)
-                if (auth(newreq))
+                val auth = getAuth(req)
+                if (auth.isDefined)
                     {
+                    val newreq  = new Request(req, auth.get)
+                    val newresp = new Response(resp)
                     method match
                         {
                         case "PUT" =>
@@ -155,7 +154,6 @@ class RestServlet extends Servlet
                 }//servlet.isDefined
             }//words.size
         }
-
 
 }
 
