@@ -452,12 +452,12 @@ trait JsonResult
     def isDefined = !isEmpty
     def isEmpty : Boolean
     def get : JsonValue
+    def map[B](f: JsonValue => B): Option[B] = 
+        if (isEmpty) None else Some(f(this.get))
     def flatMap[B](f: JsonValue => Option[B]): Option[B] = 
         if (isEmpty) None else f(this.get)
     def foreach[B](f: JsonValue => Option[B]) =
         if (!isEmpty) f(this.get)
-    def collect[B](pf: PartialFunction[JsonValue, B]): Option[B] =
-        if (!isEmpty && pf.isDefinedAt(this.get)) Some(pf(this.get)) else None  
 
 }
 
