@@ -26,34 +26,24 @@ package pedro.net.servlet
 
 
 
-class LoginServlet extends Servlet
+class LoginServlet extends TemplateServlet
 {
-    /**
-     * Override this for your application-specific authorization
-     */         
-    def authorize(req: Request) : Option[Auth] =
-        None
 
     override def doGet(req: Request, resp: Response) =
         {
         }
 
+    //Override authorize() for logging in, and http response
     override def doPost(req: Request, resp: Response) =
         {
-        val authRec = authorize(req)
+        val authRec = authorize(req, resp)
         if (authRec.isDefined)
-            {
-            
-            }
-        else
-            {
-            
-            }        
+            req.session("auth") = authRec.get
         }
 }
 
 
-class LogoutServlet extends Servlet
+class LogoutServlet extends TemplateServlet
 {
     override def doGet(req: Request, resp: Response) =
         {
@@ -62,7 +52,7 @@ class LogoutServlet extends Servlet
 
     override def doPost(req: Request, resp: Response) =
         {
-        
+        doGet(req,resp)
         }
 }
 

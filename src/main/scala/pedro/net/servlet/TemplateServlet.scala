@@ -28,21 +28,27 @@ package pedro.net.servlet
 
 class TemplateServlet extends Servlet
 {
-    override def doGet(in: Request, out: Response) =
+    def showTemplate(path: String, resp: Response) =
         {
-        val path = in.servletPath  //because the whole path is being used
         //println("path: " + path)
         val ins = Option(getServletContext.getResourceAsStream(path))
         if (ins.isEmpty)
-            out.sendError(404, "TagsServlet: File '" + path + "' not found")
+            resp.sendError(404, "TagsServlet: File '" + path + "' not found")
         else
             {
             val s = Tags.processStream(ins.get)
             if (s.isEmpty)
-                out.sendError(500, "TagsServlet: unable to process")
+                resp.sendError(500, "TagsServlet: unable to process")
             else
-                out + s.get
-            }
+                resp + s.get
+            }        
+        }
+
+
+    override def doGet(req: Request, resp: Response) =
+        {
+        val path = req.servletPath  //because the whole path is being used
+        showTemplate(path, resp)
         }
 }
 

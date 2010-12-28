@@ -41,7 +41,10 @@ class Session(val self: HttpSession)
         Option(self.getAttribute(key))
 
     def update(key: String, value: Any) =
-        self.setAttribute(key, value)
+        { //convert None back to null.  damn java
+        val cvalue = if (value == None) null else value
+        self.setAttribute(key, cvalue)
+        }
 }
 
 
@@ -208,6 +211,18 @@ class Servlet extends HttpServlet
         {        
         }
 
+    /**
+     * Override this for your application-specific authorization
+     */         
+    def authorize(req: Request, resp: Response) : Option[Auth] =
+        None
+
+    def getAuth(req: HttpServletRequest) : Option[Auth] =
+        {
+        val obj = Some(req.getSession.getAttribute("auth"))
+        obj.collect{case a:Auth => a}
+        }
+    
     override def service(req: HttpServletRequest, resp: HttpServletResponse) =
         {
         val newreq  = new Request(req)

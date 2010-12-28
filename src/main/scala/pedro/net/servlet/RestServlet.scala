@@ -78,6 +78,7 @@ trait ResourceHandler
 
 
 
+
 class RestServlet extends Servlet
 {
     val handlers = scala.collection.mutable.Map[String, ResourceHandler]()
@@ -88,11 +89,32 @@ class RestServlet extends Servlet
         handler
         }
     
-    def getAuth(req: HttpServletRequest) : Option[Auth] =
+    /**
+     * Log in.  Override authorize for your needs and output the answer
+     */         
+    def login(req: Request, resp: Response) =
         {
-        val obj = Some(req.getSession.getAttribute("auth"))
-        obj.collect{case a:Auth => a}
+        val authRec = authorize(req, resp)
+        if (authRec.isDefined)
+            req.session("auth") = authRec.get
         }
+
+    /**
+     * Log out.  Override this to output the http answer. Call
+     * super first.     
+     */         
+    def logout(req: Request, resp: Response) =
+        {
+        req.session("auth") = None
+        }
+
+    add("login", new ResourceHandler
+        {
+        override def doPost(req: Request, resp: Response) = login(req, resp)
+    
+        override def doDelete(req: Request, resp: Response, resourceName: String) =
+            logout(req,resp)
+        })
     
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
@@ -123,7 +145,7 @@ class RestServlet extends Servlet
             else
                 {
                 val auth = getAuth(req)
-                if (auth.isDefined)
+                if (auth.isDefined || resourceType == "login")
                     {
                     val newreq  = new Request(req, auth.get)
                     val newresp = new Response(resp)
