@@ -33,7 +33,7 @@ import javax.servlet.http.{HttpServletRequest,HttpServletResponse}
 /**
  * This is code to handle REST requests for a single resource type
  */ 
-trait ResourceHandler
+class ResourceHandler(val resourceType: String)
 {
     /**
      * Used for fetching an item or querying for a list of items
@@ -42,6 +42,7 @@ trait ResourceHandler
      */         
     def doGet(req: Request, resp: Response, resourceName: String) =
         {
+        resp.sendError(405, "GET method not implemented for: '" + resourceType + "'")
         }
 
     /**
@@ -50,6 +51,7 @@ trait ResourceHandler
      */         
     def doPost(req: Request, resp: Response) =
         {
+        resp.sendError(405, "POST method not implemented for: '" + resourceType + "'")
         }
 
     /**
@@ -58,6 +60,7 @@ trait ResourceHandler
      */         
     def doPut(req: Request, resp: Response, resourceName: String) =
         {
+        resp.sendError(405, "PUT method not implemented for: '" + resourceType + "'")
         }
 
     /**
@@ -70,6 +73,7 @@ trait ResourceHandler
      */         
     def doDelete(req: Request, resp: Response, resourceName: String) =
         {
+        resp.sendError(405, "DELETE method not implemented for: '" + resourceType + "'")
         }
 
 }
@@ -79,13 +83,13 @@ trait ResourceHandler
 
 
 
-class RestServlet extends Servlet
+class RestServlet extends Servlet with pedro.util.Logged
 {
     val handlers = scala.collection.mutable.Map[String, ResourceHandler]()
     
-    def add(resourceType: String, handler: ResourceHandler) : ResourceHandler =
+    def add(handler: ResourceHandler) : ResourceHandler =
         {
-        handlers += resourceType -> handler
+        handlers += handler.resourceType -> handler
         handler
         }
     
@@ -108,9 +112,10 @@ class RestServlet extends Servlet
         req.session("auth") = None
         }
 
-    add("login", new ResourceHandler
+    add(new ResourceHandler("login")
         {
         override def doPost(req: Request, resp: Response) = login(req, resp)
+        override def doGet(req: Request, resp: Response, resourceName:String) = doPost(req, resp)
     
         override def doDelete(req: Request, resp: Response, resourceName: String) =
             logout(req,resp)
@@ -118,8 +123,6 @@ class RestServlet extends Servlet
     
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
-        val outs = resp.getWriter
-
         val method = req.getMethod
         var pathInfo = req.getPathInfo
         if (pathInfo.length > 1 && pathInfo(0) == '/')
@@ -147,7 +150,7 @@ class RestServlet extends Servlet
                 val auth = getAuth(req)
                 if (auth.isDefined || resourceType == "login")
                     {
-                    val newreq  = new Request(req, auth.get)
+                    val newreq  = new Request(req, auth getOrElse AuthNone)
                     val newresp = new Response(resp)
                     method match
                         {

@@ -32,10 +32,15 @@ package pedro.net.servlet
  */  
 trait Auth
 {
-    val id    = ""
-    val level = 0
+    val id    : String
+    val level : Int
 }
 
+case class AuthBasic(id:String, level:Int) extends Auth
 case object AuthNone extends Auth
+{
+    val id = ""
+    val level = 0
+}
 
 

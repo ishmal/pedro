@@ -174,7 +174,12 @@ class JdbcKvStore(
     private def checkConnect =
         {
         if (conn.isEmpty || conn.get.isClosed)
-            { error("not connected") ; false }
+            {
+            if (!connect)
+                { error("not connected") ; false }
+            else
+                true
+            }
         else 
             true
         }
@@ -381,6 +386,7 @@ class JdbcKvStore(
     
     def list[T<:Data](kind: Kind[T]) : Option[Seq[T]] =
         {
+        if (!checkConnect) return None
         try
             {
             val res = scala.collection.mutable.ListBuffer[T]()
@@ -405,6 +411,7 @@ class JdbcKvStore(
 
     def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]] =
         {
+        if (!checkConnect) return None
         try
             {
             val ids = scala.collection.mutable.ListBuffer[String]()

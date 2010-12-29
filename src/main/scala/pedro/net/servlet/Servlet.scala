@@ -111,7 +111,7 @@ class Response(val self : HttpServletResponse)
         self.getOutputStream.write(msg)
         this
         }
-    
+
     def sendError(code: Int, msg: String) =
         self.sendError(code, msg)
 }
