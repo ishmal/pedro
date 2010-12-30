@@ -21,7 +21,7 @@
  */   
 
 
-package pedro.net
+package pedro.net.oauth
 
 
 /**

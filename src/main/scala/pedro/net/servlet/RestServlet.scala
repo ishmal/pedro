@@ -87,6 +87,8 @@ class RestServlet extends Servlet with pedro.util.Logged
 {
     val handlers = scala.collection.mutable.Map[String, ResourceHandler]()
     
+    val mimeType = "text/html"
+    
     def add(handler: ResourceHandler) : ResourceHandler =
         {
         handlers += handler.resourceType -> handler
@@ -152,6 +154,7 @@ class RestServlet extends Servlet with pedro.util.Logged
                     {
                     val newreq  = new Request(req, auth getOrElse AuthNone)
                     val newresp = new Response(resp)
+                    resp.setContentType(mimeType)
                     method match
                         {
                         case "PUT" =>
