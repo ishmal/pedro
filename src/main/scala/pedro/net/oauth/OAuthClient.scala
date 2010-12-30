@@ -27,7 +27,7 @@ package pedro.net.oauth
 /**
  * This trait has methods common to OAuth 1 and 2.
  */ 
-trait OAuth
+trait OAuthClient
 {
     val debug = false
 
@@ -196,10 +196,10 @@ case class OAuth1Account
     )
 
 
-class OAuth1(
+class OAuth1Client(
     account  : OAuth1Account = new OAuth1Account,
     override val debug : Boolean = false
-) extends OAuth
+) extends OAuthClient
 {
     private val hmac = "HMAC-SHA1"
 
@@ -386,13 +386,13 @@ object OAuth1
     
     def doTest1 =
         {
-        val oauth = new OAuth1(scalaNode, true)
+        val oauth = new OAuth1Client(scalaNode, true)
         oauth.doPost("http://api.twitter.com/1/statuses/update.json", Map("status"->"fixed again"))
         }
 
     def doTest2 =
         {
-        val oauth = new OAuth1(scalaNode, true)
+        val oauth = new OAuth1Client(scalaNode, true)
         val res = oauth.doGet("http://search.twitter.com/search.json", Map("q"->"#earthquake"))
         if (res.isDefined)
             println("res: " + res.get)
@@ -430,10 +430,10 @@ case class OAuth2Account
     )
 
 
-class OAuth2(
+class OAuth2Client(
     account : OAuth2Account = new OAuth2Account,
     override val debug : Boolean = false
-) extends OAuth
+) extends OAuthClient
 {
     private var acct = account
 
@@ -546,7 +546,7 @@ object OAuth2
     
     def doTest =
         {
-        val oauth = new OAuth2(scalaNode)
+        val oauth = new OAuth2Client(scalaNode)
 
         val resp = oauth.doGet("https://graph.facebook.com/btaylor")
         if (resp.isEmpty)
