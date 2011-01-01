@@ -180,6 +180,31 @@ class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(sel
 
 class Servlet extends HttpServlet
 {
+    /**
+     * Escape XML entities.  Should use this for any unknown
+     * strings.     
+     */         
+    def xmlStr(ins: String) : String =
+        {
+        val buf = new StringBuilder
+        ins.foreach(ch=>
+            {
+            if (ch == '"')                 buf.append("&quot;")
+            else if (ch == '\'')           buf.append("&apos;")
+            else if (ch == '&')            buf.append("&amp;")
+            else if (ch == '<')            buf.append("&lt;")
+            else if (ch == '>')            buf.append("&gt;")
+            else if ((ch > 32 && ch < 127) || ch.isWhitespace) buf.append(ch)
+            else if (ch < 128)  //catch two-digit escapes
+                 buf.append("&#x").
+                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
+            else buf.append("&#x").
+                 append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
+                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
+            })
+        buf.toString
+        }
+
     def realPath(fname: String) =
         getServletContext.getRealPath(fname)
 

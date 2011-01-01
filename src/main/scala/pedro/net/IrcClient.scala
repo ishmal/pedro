@@ -4,7 +4,7 @@
  * Authors:
  *   Bob Jamison
  *
- * Copyright (C) 2010 Bob Jamison
+ * Copyright (C) 2011 Bob Jamison
  * 
  *  This file is part of the Pedro library.
  *
