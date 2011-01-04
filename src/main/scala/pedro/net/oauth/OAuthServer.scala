@@ -78,7 +78,7 @@ class RegistryServlet extends Servlet
         """
 
         val cmd = req("cmd")
-        if (cmd == show)
+        if (cmd == "show")
             {
             val id = req("id")
             val res = Db.get(app, id)

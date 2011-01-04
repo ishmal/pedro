@@ -180,6 +180,8 @@ class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(sel
 
 class Servlet extends HttpServlet
 {
+    private val hex = "0123456789abcdef".toCharArray
+
     /**
      * Escape XML entities.  Should use this for any unknown
      * strings.     
