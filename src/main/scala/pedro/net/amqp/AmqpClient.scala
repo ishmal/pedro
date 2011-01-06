@@ -62,23 +62,53 @@ class TcpConnection(host: String = "localhost", port: Int = 5672,
         true
         }
     
+    val inbuf = Array.ofDim[Byte](4096)
+    
     def read : Option[Array[Byte]] =
         {
-        None
+        if (!isConnected)
+            {
+            error("connection closed")
+            None
+            }
+        else
+            {
+            try
+                {
+                val ins = sock.get.getInputStream
+                val arr = Array.ofDim[Byte](1024)
+                val buf = new scala.collection.mutable.ListBuffer[Byte]()
+                var len = ins.read(arr)
+                buf ++= arr
+                while (len == 1024)
+                    {
+                    len = ins.read(arr)
+                    buf ++= arr
+                    }
+                Some(buf.toArray)
+                }
+            catch
+                {
+                case e : Exception => error("read: " + e)
+                    None
+                }
+            }
         }
 
     def write(arr: Array[Byte]) =
         {
         if (!isConnected)
             {
-            error("connedtion closed")
+            error("connection closed")
             false
             }
         else
             {
             try
                 {
-                sock.get.getOutputStream.write(arr)
+                val out = sock.get.getOutputStream
+                out.write(arr)
+                out.flush
                 true
                 }
             catch
@@ -96,14 +126,25 @@ class TcpConnection(host: String = "localhost", port: Int = 5672,
  * TODO:  implement.  should take only a few minutes 
  */ 
 class AmqpClient(host: String = "localhost", port: Int = 5672,
-          username:String = "", password: String = "") extends Container
+          username:String = "", password: String = "")
+           extends Container with pedro.util.Logged
 {
+    
+    val magic = "AMQP\0\1\0\0".getBytes
+
     val connection = new TcpConnection(host, port)
 
     def connect : Boolean =
         {
         if (!connection.connect)
             return false
+        connection.write(magic)
+        trace("a")
+        var res = connection.read
+        trace("b")
+        if (!res.isDefined)
+            return false
+        magic.map(_.toInt).foreach(println)
         true
         }
 
