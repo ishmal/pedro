@@ -27,6 +27,11 @@
 
 package pedro.net.amqp
 
+import java.security.cert.X509Certificate
+
+import java.net.{InetAddress,Socket}
+
+
 
 
 class TcpConnection(host: String = "localhost", port: Int = 5672,
@@ -79,11 +84,11 @@ class TcpConnection(host: String = "localhost", port: Int = 5672,
                 val arr = Array.ofDim[Byte](1024)
                 val buf = new scala.collection.mutable.ListBuffer[Byte]()
                 var len = ins.read(arr)
-                buf ++= arr
+                buf ++= arr.view(0,len)
                 while (len == 1024)
                     {
                     len = ins.read(arr)
-                    buf ++= arr
+                    buf ++= arr.view(0,len)
                     }
                 Some(buf.toArray)
                 }
@@ -118,6 +123,38 @@ class TcpConnection(host: String = "localhost", port: Int = 5672,
                 }
             }
         }
+
+    private lazy val sslFactory =
+        {
+        java.security.Security.addProvider(new com.sun.net.ssl.internal.ssl.Provider)
+        val permissiveManager = new javax.net.ssl.X509TrustManager
+            {
+            def getAcceptedIssuers = Array[X509Certificate]()
+            def checkClientTrusted(arg0: Array[X509Certificate], arg1: String) = {}
+            def checkServerTrusted(arg0: Array[X509Certificate], arg1: String) = {}
+            }
+        val sslcontext = javax.net.ssl.SSLContext.getInstance( "TLS" )
+        sslcontext.init( null, // No KeyManager required
+                Array[javax.net.ssl.TrustManager](permissiveManager),
+                new java.security.SecureRandom )
+        sslcontext.getSocketFactory.asInstanceOf[javax.net.ssl.SSLSocketFactory]
+        } 
+
+    def goTLS : Boolean =
+        {
+        try
+            {
+            val newSock = sslFactory.createSocket(sock.get, host, port, true)
+            sock = Some(newSock)
+            true
+            }
+        catch
+            {
+            case e: Exception => error("Could not start SSL: " + e) ; false
+            }
+        }
+
+
 }
 
 
@@ -130,7 +167,6 @@ class AmqpClient(host: String = "localhost", port: Int = 5672,
            extends Container with pedro.util.Logged
 {
     
-    val magic = "AMQP\0\1\0\0".getBytes
 
     val connection = new TcpConnection(host, port)
 
@@ -138,13 +174,20 @@ class AmqpClient(host: String = "localhost", port: Int = 5672,
         {
         if (!connection.connect)
             return false
-        connection.write(magic)
+        connection.write(Amqp.tlsProto)
         trace("a")
         var res = connection.read
         trace("b")
         if (!res.isDefined)
             return false
-        magic.map(_.toInt).foreach(println)
+        trace("received from server: " + res.get.mkString("[",",","]"))
+        if (res.get.sameElements(Amqp.tlsProto))
+            {
+            trace("### Client TLS Accepted!")
+            if (!connection.goTLS)
+                false
+            trace("client has tls")
+            }
         true
         }
 

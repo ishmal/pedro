@@ -116,13 +116,8 @@ class Kind[+T<:Data](val name: String)(jsToData:(JsonValue) => T)
         jsToData(js)
     
     def fromString(str: String) : Option[T] =
-        {
-        JsonParser.parse(str) match
-            {
-            case JsonSuccess(js) => Some(jsToData(js))
-            case _ => None
-            }
-        }
+        JsonParser.parse(str).map(jsToData)
+
 }
 
 

@@ -33,12 +33,17 @@ class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 
     feature("The AmqpClient must be able to connect with STARTTLS and SASL")
         {
-        scenario("The client connects")
+        scenario("Server starts up and client connects")
             {
-            given("an AMQPClient")
-            val cli = new AmqpClient("ishmal.org")
+            given("an AMQPServer")
+            val srv = new AmqpServer
+            when("startup is attempted")
+            var res = srv.start
+            then("the result should be success")
+            res must be === true
+            val cli = new AmqpClient
             when("a connection is attempted")
-            val res = cli.connect
+            res = cli.connect
             then("the result should be success")
             res must be === true
             }    

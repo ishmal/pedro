@@ -127,7 +127,7 @@ trait JsonValue
      * object tree
      */              
     def toMap : Map[String, JsonValue] =
-        Map[String, JsonValue]()
+        Map()
 
     /**
      * Convenience method.  Iterate over the children of a JsonArray, applying
@@ -138,19 +138,19 @@ trait JsonValue
 
     /**
      * Convenience method.  Map each object of a JsonArray to type U, returning
-     * a List of type U.  Classes other than JsonArray will return an empty
-     * List.     
+     * a Seq of type U.  Classes other than JsonArray will return an empty
+     * Seq.     
      */              
-    def map[U](f: (JsonValue) =>  U): List[U] =
-        List[U]()
+    def map[U](f: (JsonValue) =>  U): Seq[U] =
+        List()
 
     /**
      * Return a List of the members of a JsonArray, to allow the use of List's API
      * on the members of the List.  Classes other than JsonArray will return an empty
      * List.     
      */              
-    def toList : List[JsonValue] =
-        List[JsonValue]()
+    def toList : Seq[JsonValue] =
+        List()
 
     /**
      * Return the double value of a JsonDouble, else try to convert.
@@ -292,7 +292,7 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
  * The JsonArray class.  In text this is formatted:
  * [ value0, value1, ... valueN ]
  */
-case class JsonArray(value: List[JsonValue]) extends JsonValue
+case class JsonArray(value: Seq[JsonValue]) extends JsonValue
 {
     override def serialize(buf: StringBuilder) = 
         {
@@ -333,11 +333,11 @@ case class JsonArray(value: List[JsonValue]) extends JsonValue
     override def foreach(f: (JsonValue) => Unit): Unit =
         value.foreach(f)
 
-    override def map[U](f: (JsonValue) =>  U): List[U] =
+    override def map[U](f: (JsonValue) =>  U): Seq[U] =
         value.map(f)
 
     override def toList : List[JsonValue] =
-        value
+        value.toList
 }
 
 
@@ -447,37 +447,6 @@ object Json
 }
 
 
-trait JsonResult
-{
-    def isDefined = !isEmpty
-    def isEmpty : Boolean
-    def get : JsonValue
-    def map[B](f: JsonValue => B): Option[B] = 
-        if (isEmpty) None else Some(f(this.get))
-    def flatMap[B](f: JsonValue => Option[B]): Option[B] = 
-        if (isEmpty) None else f(this.get)
-    def foreach[B](f: JsonValue => Option[B]) =
-        if (!isEmpty) f(this.get)
-
-}
-
-case class JsonSuccess(v: JsonValue) extends JsonResult
-{
-    def isEmpty = false
-    def get     = v
-}
-
-case object JsonNone extends JsonResult
-{
-    def isEmpty = true
-    def get     = throw new NoSuchElementException("JsonNone.get")
-}
-
-case object JsonError extends JsonResult
-{
-    def isEmpty = true
-    def get     = throw new NoSuchElementException("JsonError.get")
-}
 
 /**
  * A simple parser for reading JSON data as defined at http://json.org .
@@ -754,23 +723,23 @@ class JsonParser(debug: Boolean = false)
      * if (jval.isDefined)
      *     println(jval.get)                 
      */         
-    def parse(str: String = "") : JsonResult =
+    def parse(str: String = "") : Option[JsonValue] =
         {
         trace("parse")
         parsebuf = str
         val (jval, pos) = jsonValue(0)
         if (pos<0)
-            JsonError
+            None
         else
             {
             val p = skipwhite(pos)
             if (p < str.size-1)
                 {
                 error(p, "extra characters at end of parsed stream")
-                JsonError
+                None
                 }
             else
-                JsonSuccess(jval)
+                Some(jval)
             }
         }
 
@@ -790,7 +759,7 @@ object JsonParser
      * if (jval.isDefined)
      *     println(jval.get)                 
      */
-    def parse(str: String = "", debug: Boolean = false) : JsonResult =
+    def parse(str: String = "", debug: Boolean = false) : Option[JsonValue] =
         (new JsonParser(debug)).parse(str)
 
     /**
@@ -801,7 +770,7 @@ object JsonParser
      * if (jval.isDefined)
      *     println(jval.get)                 
      */
-    def parseURL(urls: String = "", debug: Boolean = false) : JsonResult =
+    def parseURL(urls: String = "", debug: Boolean = false) : Option[JsonValue] =
         {
         try
             {
@@ -817,14 +786,14 @@ object JsonParser
         catch
             {
             case e: Exception => println("JsonParser.parseURL: " + e)
-            JsonError
+            None
             }
         }
 
    /**
      * Parse a file to a JsonValue.  Convenience method.
      */
-    def parseFile(fname: String = "", debug: Boolean = false) : JsonResult =
+    def parseFile(fname: String = "", debug: Boolean = false) : Option[JsonValue] =
         {
         try
             {
@@ -840,7 +809,7 @@ object JsonParser
         catch
             {
             case e: Exception => println("JsonParser.parseFile: " + e)
-            JsonError
+            None
             }
         }
 
@@ -891,14 +860,14 @@ class JsonPush(
         escaped   = false
         }
     
-    def out(str: String) : JsonResult =
+    def out(str: String) : Option[JsonValue] =
         {
         trace("out: " + str)
         val res = JsonParser.parse(str)
         res match
             {
-            case v @ JsonSuccess(obj: JsonObject) => f(obj) ; v
-            case _ => error("Not a JsonObject") ; JsonError
+            case v @ Some(obj: JsonObject) => f(obj) ; v
+            case _ => error("Not a JsonObject") ; None
             }
         }
 
@@ -907,7 +876,7 @@ class JsonPush(
      *  This is the state machine.  Please understand this
      *  before modifying.     
      */
-    def +(chr: Int) : JsonResult =
+    def +(chr: Int) : Option[JsonValue] =
         {
         val ch = chr.asInstanceOf[Char]
         //trace("ch : " + ch)
@@ -938,7 +907,7 @@ class JsonPush(
             else
                 escaped = false
             }
-        JsonNone
+        Some(JsonNil)
         }
 }
 
@@ -952,13 +921,13 @@ object JsonPush
     def parse(str: String = "", depth:Int = 0)(f: (JsonValue)=>Unit) : Boolean =
         {
         val parser = new JsonPush(depth, f)
-        !str.exists{ch => (parser + ch) == JsonError}
+        !str.exists{ch => (parser + ch) == None}
         }
 
     def parseFile(fname: String, depth:Int = 0)(f: (JsonValue)=>Unit) : Boolean =
         {
         val parser = new JsonPush(depth, f)
-        !scala.io.Source.fromFile(fname).exists{ch => (parser + ch) == JsonError}
+        !scala.io.Source.fromFile(fname).exists{ch => (parser + ch) == None}
         }
 }
 

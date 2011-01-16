@@ -828,17 +828,20 @@ class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
 
     def getConfig : Boolean =
         {
-        pedro.data.JsonParser.parseFile(configName) match
+        val res = pedro.data.JsonParser.parseFile(configName)
+        if (res.isDefined)
             {
-            case pedro.data.JsonSuccess(js) =>
-                host    = js("host")
-                port    = js("port")
-                nick    = js("nick")
-                channel = js("channel")
-                true
-            case pedro.data.JsonError =>
-                error("getConfig: could not load config file")
-                false
+            val js = res.get
+            host    = js("host")
+            port    = js("port")
+            nick    = js("nick")
+            channel = js("channel")
+            true
+            }
+        else
+            {
+            error("getConfig: could not load config file")
+            false
             }
         }
 
