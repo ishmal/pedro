@@ -144,11 +144,23 @@ trait Container
 
 class AmqpValue
 {
+    //override for each type
     def typ   : Int = 0
-    val desc  : Option[AmqpDescriptor]=None
+    //override for each type
     def size  : Int = 0   //number of bytes after constructor or count
+    //override for each type
     def widen : AmqpValue = this
-    def bytes : Array[Byte] = Array()
+    //override for each type
+    def body  : Array[Byte] = Array()
+
+
+    val desc  : Option[AmqpDescriptor]=None
+
+    def bytes : Array[Byte] = 
+        if (desc.isDefined)
+            desc.get.bytes ++ Array[Byte](typ.toByte) ++ body
+        else
+            Array[Byte](typ.toByte) ++ body
     
     /**
      * Every AmqpValue type will have an apply(key) and apply(index) method,
@@ -287,13 +299,18 @@ class AmqpValue
 
 }
 
-//########################################################################
-//# DESCRIPTOR
-//########################################################################
+/**
+ * This is the optional descriptor that precedes a type constructor.
+ * The value it wraps can be any AmqpValue, but it -should- be an
+ * AmqpSymbol or AmqpULong  
+ *
+ * It is serialized as:
+ *     0x00 <child_constructor> <child_body>  
+ */ 
 case class AmqpDescriptor(value: AmqpValue) extends AmqpValue
 {
     override def typ = 0x00
-    override def bytes = Array[Byte](value.typ.toByte) ++ value.bytes
+    override def body = value.bytes
 }
 
 
@@ -306,21 +323,18 @@ case class AmqpNull(
 ) extends AmqpValue
 {
     override def typ = 0x40
-    override def bytes = Array[Byte]()
 }
 case class AmqpTrue(
     override val desc: Option[AmqpDescriptor]=None
 ) extends AmqpValue
 {
     override def typ = 0x41
-    override def bytes = Array[Byte]()
 }
 case class AmqpFalse(
     override val desc: Option[AmqpDescriptor]=None
 ) extends AmqpValue
 {
     override def typ = 0x42
-    override def bytes = Array[Byte]()
 }
 
 
@@ -334,7 +348,7 @@ case class AmqpUByte(
 {
     override def typ   = 0x50
     override def size  = 1
-    override def bytes = Array[Byte](value)
+    override def body = Array[Byte](value)
 }
 case class AmqpByte(
     val value : Byte = 0x00.toByte,
@@ -343,7 +357,7 @@ case class AmqpByte(
 {
     override def typ   = 0x51
     override def size  = 1
-    override def bytes = Array[Byte](value)
+    override def body = Array[Byte](value)
 }
 
 //########################################################################
@@ -356,7 +370,7 @@ case class AmqpUShort(
 {
     override def typ   = 0x60
     override def size  = 2
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 case class AmqpShort(
     val value: Short = 0,
@@ -365,7 +379,7 @@ case class AmqpShort(
 {
     override def typ   = 0x61
     override def size  = 2
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 
 //########################################################################
@@ -379,7 +393,7 @@ case class AmqpUInt(
 {
     override def typ   = 0x70
     override def size  = 4
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 case class AmqpInt(
     val value: Int = 0,
@@ -388,7 +402,7 @@ case class AmqpInt(
 {
     override def typ   = 0x71
     override def size  = 4
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 case class AmqpFloat(
     val value: Float = 0.0f,
@@ -397,7 +411,7 @@ case class AmqpFloat(
 {
     override def typ   = 0x72
     override def size  = 4
-    override def bytes = toBytes(java.lang.Float.floatToIntBits(value))
+    override def body = toBytes(java.lang.Float.floatToIntBits(value))
 }
 
 
@@ -412,7 +426,7 @@ case class AmqpULong(
 {
     override def typ   = 0x80
     override def size  = 8
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 case class AmqpLong(
     val value: Long = 0L,
@@ -421,7 +435,7 @@ case class AmqpLong(
 {
     override def typ   = 0x81
     override def size  = 8
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 case class AmqpDouble(
     val value: Double = 0.0,
@@ -430,7 +444,7 @@ case class AmqpDouble(
 {
     override def typ   = 0x82
     override def size  = 8
-    override def bytes = toBytes(java.lang.Double.doubleToLongBits(value))
+    override def body = toBytes(java.lang.Double.doubleToLongBits(value))
 }
 case class AmqpTimestamp(
     val value: Long = 0L,
@@ -439,7 +453,7 @@ case class AmqpTimestamp(
 {
     override def typ   = 0x83
     override def size  = 8
-    override def bytes = toBytes(value)
+    override def body = toBytes(value)
 }
 
 
@@ -454,7 +468,7 @@ case class AmqpUuid(
 {
     override def typ   = 0x98
     override def size  = 16
-    override def bytes = toBytes(hi) ++ toBytes(lo)
+    override def body = toBytes(hi) ++ toBytes(lo)
 }
 
 
@@ -470,7 +484,7 @@ case class AmqpBinary(
 {
     override def typ   = if (!wide && value.size < 256) 0xa0 else 0xb0
     override def size  = bytes.size
-    override def bytes =
+    override def body =
         if (wide || value.size < 256)
             Array[Byte](value.length.toByte) ++ value
         else
@@ -486,7 +500,7 @@ case class AmqpString(
 {
     override def typ   = if (!wide && value.size < 256) 0xa1 else 0xb1
     override def size  = bytes.size
-    override def bytes =
+    override def body =
         if (wide || value.size < 256)
             Array[Byte](value.length.toByte) ++ value.getBytes
         else
@@ -502,7 +516,7 @@ case class AmqpSymbol(
 {
     override def typ   = if (!wide && value.size < 256) 0xa2 else 0xb2
     override def size  = bytes.size
-    override def bytes =
+    override def body =
         if (wide || value.size < 256)
             Array[Byte](value.length.toByte) ++ value.getBytes
         else
@@ -512,29 +526,49 @@ case class AmqpSymbol(
 
 
 
-//########################################################################
-//# ARRAY
-//########################################################################
-
+/**
+ * This is the only parameterized class in the AMQP data model.  This is to
+ * make it clear to the coder that the array's children must all be the same
+ * subclass of AmqpValue.   Not only that, but they must be the same size.
+ * This restriction make the child_constructor required only once, with each
+ * child only requiring the body after the constructor.  
+ *
+ * This class is serialized as:
+ *     {descriptor} 0xe0 <size8> <count8> <child_constructor> <count*children>
+ * or if total bytes or the count cannot fit into 8 bits:
+ *     {descriptor} 0xf0 <size32> <count32> <child_constructor><count*children>
+ * For example, Encoder.array(1,2,3) would be serialized as:
+ *     0xe0 0x0e 0x03 0x71 0x00000001 0x00000002 0x00000003  
+ * 
+ * Note that variable-sized items such as this array, List, String, Binary,
+ * Symbol, and Map can be encoded with either 8-bit dimensions, or "wide"
+ * 32-bit dimensions.   Since all must be alike, then a builder for this must
+ * make sure that all sizes are either all small or all large.  If the check
+ * of the children fails the "all small" test, then each of the variable
+ * classes has a widen() method to aid in making them all large.              
+ */
 case class AmqpArray[T<:AmqpValue](
     val value: Seq[T] = Seq(),
     val wide: Boolean = false,
     override val desc: Option[AmqpDescriptor]=None
-
 ) extends AmqpValue
 {
     override def typ =
         if (!wide && childBytes.size < 256 && value.size < 256) 0xe0 else 0xf0
 
-    override def size = childBytes.size
-
-    override def bytes =
+    override def size = 
         if (isSmall)
-            Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes
+            3 + childBytes.size
         else
-            toBytes(childBytes.size) ++ toBytes(value.size) ++ childBytes
+            9 + childBytes.size
 
-    lazy val childBytes = value.map(_.bytes).flatten.toArray
+    override def body =
+        if (isSmall)
+            Array[Byte](size.toByte, value.size.toByte, value(0).typ.toByte) ++ childBytes
+        else
+            toBytes(size) ++ toBytes(value.size) ++ Array[Byte](value(0).typ.toByte) ++ childBytes
+
+    lazy val childBytes = value.map(_.body).flatten.toArray
     
     def isSmall = !wide && childBytes.size < 256 && value.size < 256
     
@@ -563,21 +597,29 @@ case class AmqpArray[T<:AmqpValue](
 //########################################################################
 
 
-//########################################################################
-//# LIST
-//########################################################################
-
+/**
+ * This class contains a sequence of AmqpValues, with no restriction on their
+ * types.
+ * 
+ *  The class is serialized as:
+ * 
+ *     {descriptor} 0xc0 <size8> <count8> < count * <child_constructor><child_body> >   
+ * or if the total byte size or count cannot fit into 8 bits: 
+ *     {descriptor} 0xc0 <size32> <count32> < count * <child_constructor><child_body> >   
+ *
+ * This is much simpler than AmqpArray! 
+ */
 case class AmqpList(
     val value: Seq[AmqpValue] = Seq(),
     val wide: Boolean = false,
     override val desc: Option[AmqpDescriptor] = None
 ) extends AmqpValue
 {
-    override def typ   = if (isSmall) 0xc0 else 0xd0
+    override def typ = if (isSmall) 0xc0 else 0xd0
 
-    override def size  = bytes.size
+    override def size = bytes.size
     
-    override def bytes =
+    override def body =
         if (isSmall)
             Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes
         else
@@ -587,7 +629,7 @@ case class AmqpList(
 
     override def widen = copy(wide=true)
     
-    lazy val childBytes = value.map(v=> Array[Byte](v.typ.toByte) ++ v.bytes).flatten.toArray
+    lazy val childBytes = value.map(v=> v.bytes).flatten.toArray
     
     override def apply(indx: Int) =
        try
@@ -612,6 +654,19 @@ case class AmqpList(
 //########################################################################
 
 
+/**
+ * This class maintains a map of Key->Value, where the key is an AmqpSymbol, and
+ * the value is any AmqpValue. 
+ * 
+ *  The class is serialized as:
+ * 
+ *     {descriptor} 0xc1 <size8> <count8> < count/2 * <symbol_constructor><symbol_body<value_constructor><value_body> >   
+ * or if the total byte size or count cannot fit into 8 bits: 
+ *     {descriptor} 0xd1 <size32> <count32> < count/2 * <symbol_constructor><symbol_body<value_constructor><value_body> >   
+ *
+ * Note that the count is the total number of elements in the Map, each pair counting
+ * as two.  So a "count8" map must have no more than 127 pairs.   
+ */
 case class AmqpMap(
     val value: Map[AmqpSymbol, AmqpValue] = Map(),
     val wide: Boolean = false,
@@ -622,7 +677,7 @@ case class AmqpMap(
 
     override def size = bytes.size
     
-    override def bytes =
+    override def body =
         if (isSmall)
             Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes
         else
@@ -632,10 +687,7 @@ case class AmqpMap(
 
     override def widen = copy(wide=true)
     
-    lazy val childBytes = value.map(v=> 
-        {
-        Array[Byte](v._1.typ.toByte) ++ v._1.bytes ++ Array[Byte](v._2.typ.toByte) ++ v._2.bytes
-        }).flatten.toArray
+    lazy val childBytes = value.toSeq.map(v=> v._1.bytes ++ v._2.bytes).flatten.toArray
     
     
     override def apply(key: String) =
@@ -649,13 +701,35 @@ case class AmqpMap(
 //########################################################################
 
 
-class Encoder
+object Encoder
 {
-    def array[T<:AmqpValue](values: T*) =
+    implicit def string2descriptor(name: String) : Option[AmqpDescriptor] =
+        if (name==null || name.length==0) None else Some(new AmqpDescriptor(new AmqpSymbol(name)))
+
+    implicit def long2descriptor(code: Long) : Option[AmqpDescriptor] =
+        Some(new AmqpDescriptor(new AmqpULong(code)))
+            
+    def desc(name: String) =
+        new AmqpDescriptor(new AmqpSymbol(name))
+            
+    def desc(code: Long) =
+        new AmqpDescriptor(new AmqpULong(code))
+            
+    def array[T<:AmqpValue](values: T*)(implicit desc: Option[AmqpDescriptor]=None) =
         {
         val arr = if (values.forall(_.size < 256)) values else values.map(_.widen)
-        new AmqpArray(arr.toSeq)
+        new AmqpArray(arr.toSeq, false, desc)
         }
+    
+    def stringArray(values: String*)(implicit desc: Option[AmqpDescriptor]=None) : AmqpArray[AmqpString] =
+        {
+        val raw = values.map(s=> new AmqpString(s))
+        val arr = if (raw.forall(_.size < 256)) raw else raw.map(_.widen)
+        new AmqpArray(arr.toSeq, false, desc)
+        }
+    
+    def intArray(values: Int*)(implicit desc: Option[AmqpDescriptor]=None) : AmqpArray[AmqpInt] =
+        new AmqpArray(values.map(i=> new AmqpInt(i)).toSeq, false, desc)
     
     def list(values: AmqpValue*) = AmqpList(values)
     

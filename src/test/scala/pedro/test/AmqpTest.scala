@@ -9,6 +9,8 @@ import org.scalatest.matchers.MustMatchers
 
 class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 {
+    import pedro.net.amqp.Encoder._
+
     feature("The coded can encode and decode information in AMQP format")
         {
         scenario("Stuff is encoded")
@@ -16,18 +18,14 @@ class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             given("A String")
             val str = "hello, world"
             when("a string is encoded")
-            var res = Codec.encode(str)
+            val strarr = stringArray("a", "b", "c")("abc")
+            val intarr = intArray(1,2,3)(0x0000000100000001L)
             then("the output must equal our expected value")
-            res.isDefined must be === true
-            res.get must be === Array[Byte](0xa1.toByte, 0x0c,
-                0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64)
-
-            when("a compound thing is encoded")
-            res = Codec.encode(List(1, 2.toByte, "Hello", 4.5))
-            then("it's gotta look good")
-            res.foreach(println)
-            res.isDefined must be === true
-            res.get.length must be > 1
+            val exp = Array[Byte](
+                0x00.toByte, 0xa2.toByte, 0x03.toByte, 0x61.toByte, 0x62.toByte, 0x63.toByte,
+                0xe0.toByte, 0x09.toByte, 0x03.toByte, 0xa1.toByte, 
+                0x01.toByte, 0x61.toByte, 0x01.toByte, 0x62.toByte, 0x01.toByte, 0x63.toByte)
+            strarr.bytes must be === exp
             }    
         }
 
