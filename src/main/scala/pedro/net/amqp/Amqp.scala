@@ -558,9 +558,9 @@ case class AmqpArray[T<:AmqpValue](
 
     override def size = 
         if (isSmall)
-            3 + childBytes.size
+            2 + childBytes.size
         else
-            9 + childBytes.size
+            5 + childBytes.size
 
     override def body =
         if (isSmall)
@@ -617,13 +617,17 @@ case class AmqpList(
 {
     override def typ = if (isSmall) 0xc0 else 0xd0
 
-    override def size = bytes.size
+    override def size = 
+	    if (isSmall)
+		    1 + childBytes.size
+		else
+		    4 + childBytes.size
     
     override def body =
         if (isSmall)
-            Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes
+            Array[Byte](size.toByte, value.size.toByte) ++ childBytes
         else
-            toBytes(childBytes.size) ++ toBytes(value.size) ++ childBytes
+            toBytes(size) ++ toBytes(value.size) ++ childBytes
 
     val isSmall = !wide && childBytes.size < 256 && value.size < 256
 
@@ -675,8 +679,12 @@ case class AmqpMap(
 {
     override def typ = if (isSmall) 0xc1 else 0xd1
 
-    override def size = bytes.size
-    
+    override def size =
+	    if (isSmall)
+		    1 + childBytes.size
+		else
+		    4 + childBytes.size
+ 
     override def body =
         if (isSmall)
             Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes

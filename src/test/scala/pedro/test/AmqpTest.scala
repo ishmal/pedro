@@ -23,7 +23,7 @@ class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             then("the output must equal our expected value")
             val exp = Array[Byte](
                 0x00.toByte, 0xa2.toByte, 0x03.toByte, 0x61.toByte, 0x62.toByte, 0x63.toByte,
-                0xe0.toByte, 0x09.toByte, 0x03.toByte, 0xa1.toByte, 
+                0xe0.toByte, 0x08.toByte, 0x03.toByte, 0xa1.toByte, 
                 0x01.toByte, 0x61.toByte, 0x01.toByte, 0x62.toByte, 0x01.toByte, 0x63.toByte)
             strarr.bytes must be === exp
             }    
