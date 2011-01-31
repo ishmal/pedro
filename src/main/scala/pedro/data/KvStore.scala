@@ -173,6 +173,7 @@ object KvStore extends pedro.util.Logged
 		typ match
 		    {
 			case JDBC => Some(new JdbcKvStore(opts.toMap))
+			case Cassandra => Some(new CassandraKvStore(opts.toMap))
 			case _ => error("Unknown KvStore type: " + typ)
 			    None
 			}
