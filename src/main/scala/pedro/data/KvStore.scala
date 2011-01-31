@@ -158,13 +158,42 @@ trait KvStore
     def delete[T <: Data](kind: Kind[T], id: String): Boolean
 }
 
-class JdbcKvStore(
-    val jdbcDriver : String = "org.h2.Driver",
-    val jdbcUrl    : String = "jdbc:h2:pedro",
-    val jdbcUser   : String = "sa",
-    val jdbcPass   : String = ""
-)  extends KvStore with pedro.util.Logged
+object KvStoreType extends Enumeration
 {
+    type KvStoreType = Value
+    val JDBC, Cassandra = Value
+}
+
+import KvStoreType._
+
+object KvStore extends pedro.util.Logged
+{
+    def create(typ: KvStoreType, opts: (String,String)*) : Option[KvStore] =
+	    {
+		typ match
+		    {
+			case JDBC => Some(new JdbcKvStore(opts.toMap))
+			case _ => error("Unknown KvStore type: " + typ)
+			    None
+			}
+		}
+}
+
+
+/**
+ * A Key/Value store which uses a JDBC database as a backend.  This is possibly
+ * not the most efficient implementation using a relational database, but it will
+ * work when others are not available.
+ * Note that the values to override are:  driver, url, user, pass.
+ */
+class JdbcKvStore(opts: Map[String, String] = Map())
+    extends KvStore with pedro.util.Logged
+{
+    val jdbcDriver = opts.getOrElse("driver", "org.h2.Driver")
+    val jdbcUrl    = opts.getOrElse("url", "jdbc:h2:pedro")
+    val jdbcUser   = opts.getOrElse("user", "sa")
+    val jdbcPass   = opts.getOrElse("pass", "")
+
     var conn : Option[java.sql.Connection] = None
     private def checkConnect =
         {
@@ -204,7 +233,7 @@ class JdbcKvStore(
              }
         catch
             {
-            case e:Exception => error("connect: " + e)
+            case e:Exception => error("disconnect: " + e)
                 false
             }
          }
@@ -278,7 +307,7 @@ class JdbcKvStore(
         }
     
     /**
-     * Determines if an id already exists in a table
+     * Puts a key/value pair into the table
      */         
     def exists(name: String, id: String) : Boolean =
         {
@@ -476,6 +505,7 @@ class JdbcKvStore(
         }
     
 }
+
 
 
 

@@ -42,7 +42,7 @@ class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
         scenario("The store should be able to connect and disconnect")
             {
             given("a JDBC KV Store")
-            val store = new JdbcKvStore(jdbcUrl="jdbc:h2:~/pedro")
+            val store = new JdbcKvStore(Map("url" -> "jdbc:h2:~/pedro"))
             when("connect is called")
             var result = store.connect
             then("the return value should be true")
