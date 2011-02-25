@@ -150,7 +150,7 @@ trait KvStore
     def connect : Boolean
     def disconnect : Boolean
     def create(schema: Schema) : Boolean
-    def exists(name: String, id: String) : Boolean
+    //def exists(name: String, id: String) : Boolean
     def put[T <: Data](kind: Kind[T], data: T) : Boolean
     def get[T <: Data](kind: Kind[T], id: String): Option[T]
     def list[T<:Data](kind: Kind[T]) : Option[Seq[T]]

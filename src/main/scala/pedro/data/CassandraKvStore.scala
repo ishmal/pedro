@@ -116,31 +116,40 @@ class CassandraKvStore(opts: Map[String, String] = Map())
         }
     
     /**
-     * Determines if an id already exists in a table
-     */         
-    def exists(name: String, id: String) : Boolean =
-        {
-        if (!checkConnect) return false
-		false
-        }
-    
-    /**
      * Puts a key/value pair into the table
      */         
     def put[T <: Data](kind: Kind[T], data: T) : Boolean =
         {
         if (!checkConnect) return false
-        val cp = new ColumnParent(kind.name)
         try
 		    {
 			val js = Json.toJson(data)
 			conn.get.cli.insert(ByteBuffer.wrap(data.id.getBytes),
-                cp,
+                new ColumnParent(kind.name),
                 new Column(ByteBuffer.wrap("value".getBytes("UTF-8")),
                     ByteBuffer.wrap(js.toString.getBytes("UTF-8")),
-                    System.currentTimeMillis
-                    ),
+                    System.currentTimeMillis),
                 ConsistencyLevel.ONE)
+            kind.indices.foreach(i=>
+                {
+                val name = kind.name + "_" + i.name
+                trace("index: " + name)
+                val jsx = i.grabber(js) match
+                    {
+                    case v:JsonArray => v.toList
+                    case _           => List(js)
+                    }
+                jsx.foreach(j=>
+                    {
+                    val v = i.get(j)
+                    conn.get.cli.insert(ByteBuffer.wrap(data.id.getBytes),
+                        new ColumnParent(name),
+                        new Column(ByteBuffer.wrap("value".getBytes("UTF-8")),
+                            ByteBuffer.wrap(js.toString.getBytes("UTF-8")),
+                            System.currentTimeMillis),
+                        ConsistencyLevel.ONE)
+                    })
+                })
 			true
 			}
 		catch
@@ -190,12 +199,10 @@ class CassandraKvStore(opts: Map[String, String] = Map())
     def list[T<:Data](kind: Kind[T]) : Option[Seq[T]] =
         {
         if (!checkConnect) return None
-		val cp = new ColumnParent(kind.name)
 		try
 		    {
-			val jKeySlices = conn.get.cli.get_range_slices(cp, unboundedSlicePredicate,
-           			unboundedKeyRange, ConsistencyLevel.ONE)
-			val keySlices = List[KeySlice]() ++ jKeySlices
+			val keySlices = List[KeySlice]() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
+      			unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
 			val res = keySlices.map(ks=> kind.fromString(new String(ks.getColumns()(0).column.getValue)))
 			Some(res.flatten)
 			}
@@ -210,12 +217,25 @@ class CassandraKvStore(opts: Map[String, String] = Map())
     def query[T<:Data, U<:Any](kind: Kind[T], index:Index[U], comp: (U)=>Boolean) : Option[Seq[T]] =
         {
         if (!checkConnect) return None
-		val cp = new ColumnParent(kind.name)
 		try
 		    {
-			val jKeySlices = conn.get.cli.get_range_slices(cp, unboundedSlicePredicate,
-			      unboundedKeyRange, ConsistencyLevel.ONE)
-			val keySlices = List[KeySlice]() ++ jKeySlices
+			val ids = scala.collection.mutable.ListBuffer[String]()
+            val iname = kind.name + "_" + index.name
+            val indexSlices = List() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
+        		unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
+            for (slice <- indexSlices)
+			    {
+                index match
+                    { //here is where comp() is used to filter values & their ids
+                    case v:BooleanIndex    => if (comp(rs.getBoolean(2))) ids += rs.getString(1)
+                    case v:DoubleIndex     => if (comp(rs.getDouble(2)))  ids += rs.getString(1)
+                    case v:IntIndex        => if (comp(rs.getInt(2)))     ids += rs.getString(1)
+                    case v:StringIndex     => if (comp(rs.getString(2)))  ids += rs.getString(1)
+                    }
+                }
+            stmt.close
+			val keySlices = List[KeySlice]() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
+        		unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
 			val res = keySlices.map(ks=> kind.fromString(new String(ks.getColumns()(0).column.getValue)))
 			Some(res.flatten)
 			}
@@ -233,8 +253,14 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 		val cp = new ColumnPath(kind.name)
 		try
 		    {
-			val col = conn.get.cli.remove(ByteBuffer.wrap(id.getBytes("UTF-8")), cp,
+			conn.get.cli.remove(ByteBuffer.wrap(id.getBytes("UTF-8")), new ColumnPath(kind.name),
     			System.currentTimeMillis, ConsistencyLevel.ONE)
+			kind.indices.foreach(i=>
+			    {
+				val name = kind.name + "_" + i.name
+    			conn.get.cli.remove(ByteBuffer.wrap(id.getBytes("UTF-8")), new ColumnPath(name),
+    			    System.currentTimeMillis, ConsistencyLevel.ONE)
+				})
 			true
 			}
 		catch
