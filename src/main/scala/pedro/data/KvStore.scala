@@ -64,7 +64,7 @@ class DoubleIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[D
 {
     def get(j:JsonValue) : Double = j
 }
-class IntIndex    (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Int]    (nam)(grab)
+class LongIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Int]    (nam)(grab)
 {
     def get(j:JsonValue) : Int = j
 }

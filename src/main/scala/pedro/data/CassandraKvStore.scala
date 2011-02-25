@@ -176,7 +176,7 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 			}
         }
     
-	val unboundedKeyRange =
+	val allKeyRange =
 	    {
 		val keyRange = new KeyRange
         keyRange.setStart_key(Array[Byte]())
@@ -184,7 +184,7 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 		keyRange
 		}
 	
-	val unboundedSlicePredicate =
+	val allSlicePredicate =
 	    {
 		val slicePredicate = new SlicePredicate
         val sliceRange = new SliceRange
@@ -193,6 +193,19 @@ class CassandraKvStore(opts: Map[String, String] = Map())
         slicePredicate.setSlice_range(sliceRange)
 		slicePredicate
 		}
+        
+    def longToBytes(lval: Long ) =
+        Array[Byte]( ((lval >> 24)&0xff).toByte, ((lval >> 16)&0xff).toByte,
+                     ((lval >>  8)&0xff).toByte, ((lval      )&0xff).toByte )
+
+    def doubleToBytes(d: Double) =
+        longToBytes(java.lang.Double.doubleToRawLongBits(d))
+	
+    def bytesToLong(arr: Array[Byte]) =
+        arr.foldLeft(0L){ (lval, b) => (lval << 8) | (b.toLong & 0xff) }
+        
+    def bytesToDouble(arr: Array[Byte]) =
+        java.lang.Double.longBitsToDouble(bytesToLong(arr))
 	
 	import scala.collection.JavaConversions._
 	
@@ -202,7 +215,7 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 		try
 		    {
 			val keySlices = List[KeySlice]() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
-      			unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
+      			allSlicePredicate, allKeyRange, ConsistencyLevel.ONE)
 			val res = keySlices.map(ks=> kind.fromString(new String(ks.getColumns()(0).column.getValue)))
 			Some(res.flatten)
 			}
@@ -222,20 +235,21 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 			val ids = scala.collection.mutable.ListBuffer[String]()
             val iname = kind.name + "_" + index.name
             val indexSlices = List() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
-        		unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
+        		allSlicePredicate, allKeyRange, ConsistencyLevel.ONE)
             for (slice <- indexSlices)
 			    {
+                val key = new String(slice.getColumns()(0).column.getValue)
+                val vb = slice.getColumns()(1).column.getValue
                 index match
                     { //here is where comp() is used to filter values & their ids
-                    case v:BooleanIndex    => if (comp(rs.getBoolean(2))) ids += rs.getString(1)
-                    case v:DoubleIndex     => if (comp(rs.getDouble(2)))  ids += rs.getString(1)
-                    case v:IntIndex        => if (comp(rs.getInt(2)))     ids += rs.getString(1)
-                    case v:StringIndex     => if (comp(rs.getString(2)))  ids += rs.getString(1)
+                    case v:BooleanIndex    => val bv = if (vb(0)==0) false else true ; if (comp(bv)) ids += key
+                    case v:DoubleIndex     => val dv = bytesToDouble(vb) ; if (comp(dv))  ids += key
+                    case v:IntIndex        => val iv = bytesToLong(vb); if (comp(iv)) ids += key
+                    case v:StringIndex     => val sv = new String(vb); if (comp(sv)) ids += key
                     }
                 }
-            stmt.close
 			val keySlices = List[KeySlice]() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),
-        		unboundedSlicePredicate, unboundedKeyRange, ConsistencyLevel.ONE)
+        		allSlicePredicate, allKeyRange, ConsistencyLevel.ONE)
 			val res = keySlices.map(ks=> kind.fromString(new String(ks.getColumns()(0).column.getValue)))
 			Some(res.flatten)
 			}
