@@ -242,10 +242,10 @@ class CassandraKvStore(opts: Map[String, String] = Map())
                 val vb = slice.getColumns()(1).column.getValue
                 index match
                     { //here is where comp() is used to filter values & their ids
-                    case v:BooleanIndex    => val bv = if (vb(0)==0) false else true ; if (comp(bv)) ids += key
-                    case v:DoubleIndex     => val dv = bytesToDouble(vb) ; if (comp(dv))  ids += key
-                    case v:IntIndex        => val iv = bytesToLong(vb); if (comp(iv)) ids += key
-                    case v:StringIndex     => val sv = new String(vb); if (comp(sv)) ids += key
+                    case v:BooleanIndex => val bv = if (vb(0)==0) false else true ; if (comp(bv)) ids += key
+                    case v:DoubleIndex  => val dv = bytesToDouble(vb); if (comp(dv)) ids += key
+                    case v:LongIndex    => val iv = bytesToLong(vb);   if (comp(iv)) ids += key
+                    case v:StringIndex  => val sv = new String(vb);    if (comp(sv)) ids += key
                     }
                 }
 			val keySlices = List[KeySlice]() ++ conn.get.cli.get_range_slices(new ColumnParent(kind.name),

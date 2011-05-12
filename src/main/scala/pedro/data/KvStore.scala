@@ -64,9 +64,9 @@ class DoubleIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[D
 {
     def get(j:JsonValue) : Double = j
 }
-class LongIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Int]    (nam)(grab)
+class LongIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Long]    (nam)(grab)
 {
-    def get(j:JsonValue) : Int = j
+    def get(j:JsonValue) : Long = j
 }
 class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[String] (nam)(grab)
 {
@@ -94,9 +94,9 @@ class Kind[+T<:Data](val name: String)(jsToData:(JsonValue) => T)
         idx
         }
     
-    def intIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
+    def longIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
-        val idx = new IntIndex(nam)(grab)
+        val idx = new LongIndex(nam)(grab)
         indx += idx
         idx
         }
@@ -289,7 +289,7 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                              " (id varchar(128) not null, value boolean not null)")
                         case v:DoubleIndex  => conn.get.prepareStatement("create table " + name +
                              " (id varchar(128) not null, value float not null)")
-                        case v:IntIndex     => conn.get.prepareStatement("create table " + name +
+                        case v:LongIndex    => conn.get.prepareStatement("create table " + name +
                              " (id varchar(128) not null, value integer not null)")
                         case v:StringIndex  => conn.get.prepareStatement("create table " + name +
                              " (id varchar(128) not null, value text not null)")
@@ -449,7 +449,7 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                     { //here is where comp() is used to filter values & their ids
                     case v:BooleanIndex    => if (comp(rs.getBoolean(2))) ids += rs.getString(1)
                     case v:DoubleIndex     => if (comp(rs.getDouble(2)))  ids += rs.getString(1)
-                    case v:IntIndex        => if (comp(rs.getInt(2)))     ids += rs.getString(1)
+                    case v:LongIndex       => if (comp(rs.getInt(2)))     ids += rs.getString(1)
                     case v:StringIndex     => if (comp(rs.getString(2)))  ids += rs.getString(1)
                     }
                 }
