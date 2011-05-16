@@ -76,7 +76,7 @@ trait Node
 
 /**
  * This is the result of a projection.  Note that it has the same API as Node,
- * so that these can be chined together.
+ * so that these can be chained together.
  */  
 class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProxy[Node]
 {

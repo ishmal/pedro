@@ -126,7 +126,7 @@ class RestServlet extends Servlet with pedro.util.Logged
     override def service(req: HttpServletRequest, resp: HttpServletResponse)=
         {
         val method = req.getMethod
-        var pathInfo = req.getPathInfo
+        var pathInfo = if (req.getPathInfo != null) req.getPathInfo else ""
         if (pathInfo.length > 1 && pathInfo(0) == '/')
             pathInfo = pathInfo.substring(1)
         val words = pathInfo.split("/")
