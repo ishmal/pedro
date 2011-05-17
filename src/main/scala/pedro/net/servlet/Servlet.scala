@@ -207,6 +207,13 @@ class Servlet extends HttpServlet
         buf.toString
         }
 
+    /**
+     * Can be overridden
+     */     
+    def initialize =
+        {
+        }
+
     def realPath(fname: String) =
         getServletContext.getRealPath(fname)
 
@@ -269,19 +276,25 @@ class Servlet extends HttpServlet
             }
         resp.getOutputStream.flush
         }
+        
+    var initParameters : Map[String,String] =
+        Map[String,String]()
 
-    //slow, but only happens once at init() time
-    lazy val initParameters = 
+    override def init(config: javax.servlet.ServletConfig)
         {
+        super.init(config)
         val parms = scala.collection.mutable.Map[String,String]()
-        val names = getInitParameterNames
+        val names = config.getInitParameterNames
         while (names.hasMoreElements)
             {
             val name = names.nextElement.asInstanceOf[String]
             parms += name -> getInitParameter(name)
-            }  
-        parms.toMap.withDefaultValue("")
+            }
+        initParameters = parms.toMap.withDefaultValue("")     
+        initialize
         }
+        
+
 
 }
 
