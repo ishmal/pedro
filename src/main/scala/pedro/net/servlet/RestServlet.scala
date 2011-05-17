@@ -31,9 +31,9 @@ import javax.servlet.http.{HttpServletRequest,HttpServletResponse}
 
  
 /**
- * This is code to handle REST requests for a single resource type
+ * This is code to handle REST requests for a single resource type.
  */ 
-class ResourceHandler(val resourceType: String)
+class RestHandler(val resourceType: String)
 {
     /**
      * Used for fetching an item or querying for a list of items
@@ -85,11 +85,11 @@ class ResourceHandler(val resourceType: String)
 
 class RestServlet extends Servlet with pedro.util.Logged
 {
-    val handlers = scala.collection.mutable.Map[String, ResourceHandler]()
+    val handlers = scala.collection.mutable.Map[String, RestHandler]()
     
     val mimeType = "text/html"
     
-    def add(handler: ResourceHandler) : ResourceHandler =
+    def add(handler: RestHandler) : RestHandler =
         {
         handlers += handler.resourceType -> handler
         handler
@@ -114,7 +114,7 @@ class RestServlet extends Servlet with pedro.util.Logged
         req.session("auth") = None
         }
 
-    add(new ResourceHandler("login")
+    add(new RestHandler("login")
         {
         override def doPost(req: Request, resp: Response) = login(req, resp)
         override def doGet(req: Request, resp: Response, resourceName:String) = doPost(req, resp)
