@@ -30,7 +30,7 @@ import org.apache.cassandra.thrift.Cassandra
 
 import org.apache.thrift.TException
 import org.apache.thrift.transport.{TTransport,TFramedTransport,TSocket}
-import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.cassandra.thrift.TBinaryProtocol
 import org.apache.cassandra.thrift.{Column,ColumnParent,ColumnPath,ConsistencyLevel}
 import org.apache.cassandra.thrift.{KeySlice,KeyRange,SliceRange,SlicePredicate}
 import java.nio.ByteBuffer
