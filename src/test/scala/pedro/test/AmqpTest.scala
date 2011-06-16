@@ -1,12 +1,16 @@
 package pedro.test
 
-import pedro.net.amqp._
-
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec,GivenWhenThen}
 import org.scalatest.matchers.MustMatchers
+
+import pedro.net.amqp._
+
  
 
 
+@RunWith(classOf[JUnitRunner])
 class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 {
     import pedro.net.amqp.Encoder._

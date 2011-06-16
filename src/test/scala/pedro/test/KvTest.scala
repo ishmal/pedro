@@ -3,11 +3,13 @@
 
 package pedro.test
 
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
+import org.scalatest.matchers.MustMatchers
+import org.scalatest.{FeatureSpec,GivenWhenThen}
+
 import pedro.data.{Data,Schema,StringIndex,Kind,JdbcKvStore}
 
-import org.scalatest.{FeatureSpec,GivenWhenThen}
-import org.scalatest.matchers.MustMatchers
- 
 
 case class User(
     val id : String = "",
@@ -35,6 +37,7 @@ object TestSchema extends Schema
 
 import TestSchema._
 
+@RunWith(classOf[JUnitRunner])
 class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 {
     feature("The KeyValue store can put/get/query and delete records on a backend")

@@ -2,11 +2,13 @@ package pedro.test
 
 import pedro.net.servlet._
 
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec,GivenWhenThen}
 import org.scalatest.matchers.MustMatchers
  
 
-
+@RunWith(classOf[JUnitRunner])
 class XsltSpec extends FeatureSpec with GivenWhenThen with MustMatchers
 {
     feature("The XsltFilter must be able to transform xml")
