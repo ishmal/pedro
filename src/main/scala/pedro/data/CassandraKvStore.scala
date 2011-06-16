@@ -27,12 +27,11 @@
 package pedro.data
 
 import org.apache.cassandra.thrift.Cassandra
-
-import org.apache.thrift.TException
-import org.apache.thrift.transport.{TTransport,TFramedTransport,TSocket}
 import org.apache.cassandra.thrift.TBinaryProtocol
 import org.apache.cassandra.thrift.{Column,ColumnParent,ColumnPath,ConsistencyLevel}
 import org.apache.cassandra.thrift.{KeySlice,KeyRange,SliceRange,SlicePredicate}
+import org.apache.thrift.TException
+import org.apache.thrift.transport.{TTransport,TFramedTransport,TSocket}
 import java.nio.ByteBuffer
   
 /**
@@ -47,6 +46,18 @@ class CassandraKvStore(opts: Map[String, String] = Map())
     val user     = opts.getOrElse("user", "")
     val pass     = opts.getOrElse("pass", "")
 	val keyspace = opts.getOrElse("keyspace", "Keyspace1")
+
+    private implicit def stringToByteBuffer(s: String) =
+        ByteBuffer.wrap(s.getBytes("UTF-8"));
+    private def getCol(name: String, value: String) =
+        {
+        val col = new Column(name)
+        col.setValue(value)
+        col.setTimestamp(System.currentTimeMillis)
+        col
+        }
+    private def getBuf(s: String) : java.nio.ByteBuffer =
+        ByteBuffer.wrap(s.getBytes("UTF-8"));
 
 	class Connection(val cli: Cassandra.Client, val transport: TTransport)
 	    {
@@ -124,11 +135,9 @@ class CassandraKvStore(opts: Map[String, String] = Map())
         try
 		    {
 			val js = Json.toJson(data)
-			conn.get.cli.insert(ByteBuffer.wrap(data.id.getBytes),
+			conn.get.cli.insert(data.id,
                 new ColumnParent(kind.name),
-                new Column(ByteBuffer.wrap("value".getBytes("UTF-8")),
-                    ByteBuffer.wrap(js.toString.getBytes("UTF-8")),
-                    System.currentTimeMillis),
+                getCol("value", js.toString),
                 ConsistencyLevel.ONE)
             kind.indices.foreach(i=>
                 {
@@ -142,11 +151,9 @@ class CassandraKvStore(opts: Map[String, String] = Map())
                 jsx.foreach(j=>
                     {
                     val v = i.get(j)
-                    conn.get.cli.insert(ByteBuffer.wrap(data.id.getBytes),
+                    conn.get.cli.insert(data.id,
                         new ColumnParent(name),
-                        new Column(ByteBuffer.wrap("value".getBytes("UTF-8")),
-                            ByteBuffer.wrap(js.toString.getBytes("UTF-8")),
-                            System.currentTimeMillis),
+                        getCol("value", js.toString),
                         ConsistencyLevel.ONE)
                     })
                 })
@@ -165,7 +172,7 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 		val cp = new ColumnPath(kind.name)
 		try
 		    {
-			val col = conn.get.cli.get(ByteBuffer.wrap(id.getBytes("UTF-8")), cp, ConsistencyLevel.ONE)
+			val col = conn.get.cli.get(getBuf(id), cp, ConsistencyLevel.ONE)
 			val value = new String(col.getColumn.getValue)
 			kind.fromString(value)
 			}
@@ -267,12 +274,12 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 		val cp = new ColumnPath(kind.name)
 		try
 		    {
-			conn.get.cli.remove(ByteBuffer.wrap(id.getBytes("UTF-8")), new ColumnPath(kind.name),
+			conn.get.cli.remove(id, new ColumnPath(kind.name),
     			System.currentTimeMillis, ConsistencyLevel.ONE)
 			kind.indices.foreach(i=>
 			    {
 				val name = kind.name + "_" + i.name
-    			conn.get.cli.remove(ByteBuffer.wrap(id.getBytes("UTF-8")), new ColumnPath(name),
+    			conn.get.cli.remove(id, new ColumnPath(name),
     			    System.currentTimeMillis, ConsistencyLevel.ONE)
 				})
 			true
@@ -283,6 +290,7 @@ class CassandraKvStore(opts: Map[String, String] = Map())
 			    false
 			}
         }
+        
     
 }
 
