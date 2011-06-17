@@ -38,7 +38,7 @@ object TestSchema extends Schema
 import TestSchema._
 
 @RunWith(classOf[JUnitRunner])
-class KvStoreSpec extends FeatureSpec with GivenWhenThen with MustMatchers
+class KvStoreTest extends FeatureSpec with GivenWhenThen with MustMatchers
 {
     feature("The KeyValue store can put/get/query and delete records on a backend")
         {

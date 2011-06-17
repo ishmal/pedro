@@ -11,7 +11,7 @@ import pedro.net.amqp._
 
 
 @RunWith(classOf[JUnitRunner])
-class AmqpSpec extends FeatureSpec with GivenWhenThen with MustMatchers
+class AmqpTest extends FeatureSpec with GivenWhenThen with MustMatchers
 {
     import pedro.net.amqp.Encoder._
 
