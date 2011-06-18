@@ -177,7 +177,24 @@ trait JsonValue
     /**
      * Return the long value of a JsonInt, else try to convert
      */              
-    def i : Long =
+    def i : Int =
+        this match
+            {
+            case JsonInt(v)     => v.toInt
+            case JsonBoolean(v) => if (v) 1 else 0
+            case JsonDouble(v)  => v.toInt
+            case JsonArray(v)   => if (v.size==1) v(0).i else 0
+            case JsonString(v)  => try
+                                       { v.trim.toInt }
+                                   catch
+                                       { case e:Exception => 0 }
+            case _              => 0
+            }
+
+    /**
+     * Return the long value of a JsonInt, else try to convert
+     */              
+    def l : Long =
         this match
             {
             case JsonInt(v)     => v
@@ -232,8 +249,8 @@ object JsonValue
     implicit def json2doubleSeq(j:JsonValue)  : Seq[Double]  = j.map(_.d)
     implicit def json2int(j:JsonValue)        : Int          = j.i.toInt
     implicit def json2intSeq(j:JsonValue)     : Seq[Int]     = j.map(_.i.toInt)
-    implicit def json2long(j:JsonValue)       : Long         = j.i
-    implicit def json2longSeq(j:JsonValue)    : Seq[Long]    = j.map(_.i)
+    implicit def json2long(j:JsonValue)       : Long         = j.l
+    implicit def json2longSeq(j:JsonValue)    : Seq[Long]    = j.map(_.l)
     implicit def json2string(j:JsonValue)     : String       = j.s
     implicit def json2stringSeq(j:JsonValue)  : Seq[String]  = j.map(_.s)
     implicit def json2date(j:JsonValue)       : Date         = new Date(j.s)
@@ -380,6 +397,15 @@ case class JsonBoolean(value: Boolean) extends JsonValue
 object Json
 {
     import java.lang.reflect.{Method,Modifier}
+    
+    val DATE_FORMAT = "yyyyMMddHHmmss.SSSZ"
+      
+    lazy val dateFormatter = new java.text.SimpleDateFormat(DATE_FORMAT)
+    
+    def parseDate(v: JsonValue) : Date =
+        {
+        dateFormatter.parse(v)
+        }
 
     //Cache our methods so that we do not need to scan every time
     private val cache = scala.collection.mutable.Map[Class[_], Map[String, Method]]()
@@ -409,6 +435,7 @@ object Json
             case v: Int         => JsonInt(v)
             case v: Long        => JsonInt(v)
             case v: Boolean     => JsonBoolean(v)
+            case v: Date        => JsonString(dateFormatter.format(v))
             case v: Iterable[_] => toArray(v)
             case v: Array[_]    => toArray(v)
             case v: Product     => toObject(v)

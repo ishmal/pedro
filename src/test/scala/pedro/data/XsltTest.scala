@@ -1,15 +1,14 @@
-package pedro.test
+package pedro.data
 
 import pedro.net.servlet._
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec,GivenWhenThen}
-import org.scalatest.matchers.MustMatchers
  
 
 @RunWith(classOf[JUnitRunner])
-class XsltSpec extends FeatureSpec with GivenWhenThen with MustMatchers
+class XsltSpec extends FeatureSpec with GivenWhenThen
 {
     feature("The XsltFilter must be able to transform xml")
         {
@@ -21,13 +20,13 @@ class XsltSpec extends FeatureSpec with GivenWhenThen with MustMatchers
             val xslName = "src/test/resources/doc2html.xsl"
             filter.templates = filter.loadFile(xslName).flatMap(filter.loadTemplate)
             then("templates should be defined")
-            filter.templates.isDefined must be === true
+            assert(filter.templates.isDefined)
             val docName = "src/test/resources/crystalegg.docbook"
             val inbuf = scala.io.Source.fromFile(docName)("UTF-8").mkString
             when("transform is performed")
             val result = filter.transform(inbuf.getBytes)
             then("the return value should be defined")
-            result.isDefined must be === true
+            assert(result.isDefined)
             println(new String(result.get))
             }
 

@@ -3,15 +3,16 @@
 
 package pedro.data
 
+import java.util.Date
+
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.matchers.MustMatchers
 import org.scalatest.{FeatureSpec,GivenWhenThen}
 
 
 
 @RunWith(classOf[JUnitRunner])
-class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
+class JsonTest extends FeatureSpec with GivenWhenThen
 {
     val simpleStr = 
 """
@@ -64,7 +65,7 @@ class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
 }
 """
 
-      feature("JSON serialization and deserialization")
+    feature("JSON serialization and deserialization")
         {
         scenario("JSON should be able to parse a simple Json object")
             {
@@ -73,7 +74,7 @@ class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
             when("The parser is called")
             val res = JsonParser.parse(str)
             then("the parse should have been successful")
-            res.isDefined must be === true
+            assert(res.isDefined)
             println("### plain :\n" + res.get.toString)
             println("### pretty:\n" + res.get.pretty)
             }
@@ -88,7 +89,7 @@ class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
 	            println("## js: " + js.pretty)
 	            })
             then("the parse should have been successful")
-            res must be === true
+            assert(res)
             }
 
         scenario("JSON should be able to handle a series of escaped values")
@@ -99,7 +100,7 @@ class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
 	        val res = JsonParser.parse(str)
             then("the parse should have failed")
             println("res:"+res)
-	        res.isEmpty must be === true
+	        assert(res.isEmpty)
 
             given("A Json string with various escapes, all ok")
             val str2 = """["AB\\CD",324,23,true,"AB\u0043D"]"""
@@ -108,7 +109,36 @@ class JsonTest extends FeatureSpec with GivenWhenThen with MustMatchers
 	        val res2 = JsonParser.parse(str2)
             then("the parse should have succeeded")
             println("res2:"+res2)
-	        res2.isDefined must be === true
+	        assert(res2.isDefined)
+            }
+        }
+
+    case class Item(
+        val sval    : String = "",
+        val bval    : Boolean = false,
+        val ival    : Int = 0,
+        val lval    : Long = 0L,
+        val dval    : Double = 0.0,
+        val dateval : Date = new Date
+        )
+    
+    feature("Convert Product to JsonObject")
+        {
+        scenario("JSON should convert to and from Products correctly")
+            {
+            given("A Json object with various typed members")
+            val date = new Date();
+            val item = Item("hello", true, 1, 2L, 3.4, date)
+            when("converted to Json")
+	        val js = Json.toJson(item)
+            then("conversion to a Json object should be successful")
+            println("js:"+js.toString)
+	        expect("hello")(js("sval").s)
+	        expect(true)(js("bval").b)
+	        expect(1)(js("ival").i)
+	        expect(2L)(js("lval").l)
+	        expect(3.4)(js("dval").d)
+	        expect(date)(Json.parseDate(js("dateval")))
             }
         }
 

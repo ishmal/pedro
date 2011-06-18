@@ -1,17 +1,13 @@
-package pedro.test
+package pedro.net.amqp
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec,GivenWhenThen}
-import org.scalatest.matchers.MustMatchers
 
-import pedro.net.amqp._
-
- 
 
 
 @RunWith(classOf[JUnitRunner])
-class AmqpTest extends FeatureSpec with GivenWhenThen with MustMatchers
+class AmqpTest extends FeatureSpec with GivenWhenThen
 {
     import pedro.net.amqp.Encoder._
 
@@ -29,7 +25,7 @@ class AmqpTest extends FeatureSpec with GivenWhenThen with MustMatchers
                 0x00.toByte, 0xa2.toByte, 0x03.toByte, 0x61.toByte, 0x62.toByte, 0x63.toByte,
                 0xe0.toByte, 0x08.toByte, 0x03.toByte, 0xa1.toByte, 
                 0x01.toByte, 0x61.toByte, 0x01.toByte, 0x62.toByte, 0x01.toByte, 0x63.toByte)
-            strarr.bytes must be === exp
+            expect(exp)(strarr.bytes)
             }    
         }
 
@@ -42,12 +38,12 @@ class AmqpTest extends FeatureSpec with GivenWhenThen with MustMatchers
             when("startup is attempted")
             var res = srv.start
             then("the result should be success")
-            res must be === true
+            assert(res)
             val cli = new AmqpClient
             when("a connection is attempted")
             res = cli.connect
             then("the result should be success")
-            res must be === true
+            assert(res)
             }    
         }
 

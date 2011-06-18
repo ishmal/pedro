@@ -7,7 +7,6 @@ import java.util.Date
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.matchers.MustMatchers
 import org.scalatest.{FeatureSpec,GivenWhenThen}
 
 import pedro.data.{Data,Schema,StringIndex,Kind,JdbcKvStore}
@@ -15,7 +14,7 @@ import pedro.data.{Data,Schema,StringIndex,Kind,JdbcKvStore}
 
 
 @RunWith(classOf[JUnitRunner])
-class KvStoreTest extends FeatureSpec with GivenWhenThen with MustMatchers
+class KvStoreTest extends FeatureSpec with GivenWhenThen
 {
 	case class Item(
 	    val id : String  = "",
@@ -65,48 +64,48 @@ import TestSchema._
             when("connect is called")
             var result = store.connect
             then("the return value should be true")
-            result must be === true
+            assert(result)
             when("create is called")
             result = store.create(TestSchema)
             then("the return value should be true")
-            result must be === true
+            assert(result)
 
             when("a new Item is added")
             val item1 = new Item(id="rwj", tags=Array("big","tall"))
             result = store.put(items,item1)
             then("the return value should be true")
-            result must be === true
+            assert(result)
 
             when("a new Item is added")
             val item2 = new Item(id="jd", tags=Array("handsome","gregarious"))
             result = store.put(items,item2)
             then("the return value should be true")
-            result must be === true
+            assert(result)
 
             when("a new Item is added")
             val item3 = new Item(id="kb", tags=Array("dance","fever"))
             result = store.put(items,item3)
             then("the return value should be true")
-            result must be === true
+            assert(result)
 
             when("a item is queried")
             val xs = store.query(items, items.byTag, {s:String=> s=="big"})
             then("the return value should be > 0")
             println("1#########"); xs.get.foreach(println)
-            xs.isDefined must be === true
-            xs.get.size must be > 0
+            assert(xs.isDefined)
+            assert(xs.get.size > 0)
 
             when("a item is deleted")
             result = store.delete(items, "rwj")
             then("the return value should be true")
-            result must be === true
+            assert(result)
             
             when("2 a item is queried after deletion")
             val xs2 = store.query(items, items.byTag, {s:String=> s=="big"})
             then("the return value should be == 0")
             println("2######### "+ xs2.size); xs2.get.foreach(println)
-            xs2.isDefined must be === true
-            xs2.get.size must be === 0
+            assert(xs2.isDefined)
+            expect(0)(xs2.get.size)
 
             }
 
