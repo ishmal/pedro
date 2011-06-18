@@ -25,22 +25,21 @@ class KvStoreTest extends FeatureSpec with GivenWhenThen
 	    val dateval: Date = new Date,
 	    val tags : Seq[String] = Seq()
 	) extends pedro.data.Data
-	{}
+	{
+	  def this(js: JsonValue) = this(
+            id=js("id"),
+            sval=js("sval"),
+            ival=js("ival"),
+            lval=js("lval"),
+            dval=js("dval"),
+            dateval=js("dateval"),
+            tags=js("tags")
+	        )
+	}
 	
 	object TestSchema extends Schema
 	{
-	    val items = new Kind("items")(js=>
-	        {
-	        Item(
-	            id=js("id"),
-	            sval=js("sval"),
-	            ival=js("ival"),
-	            lval=js("lval"),
-	            dval=js("dval"),
-	            dateval=js("dateval"),
-	            tags=js("tags")
-	            )
-	        })
+	    val items = new Kind("items")(js=> Item(js))
 	        {
 	        add(this)
 	        val byName   = stringIndex("name")(js=>js("name"))

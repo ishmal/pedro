@@ -121,6 +121,18 @@ class JsonTest extends FeatureSpec with GivenWhenThen
         val dval    : Double = 0.0,
         val dateval : Date = new Date
         )
+        {
+        Json.registerProduct(this, {js=>
+            Item(
+                sval    = js("sval"),
+                bval    = js("bval"),
+                ival    = js("ival"),
+                lval    = js("lval"),
+                dval    = js("dval"),
+                dateval = js("dateval")
+                )
+            })
+        }
     
     feature("Convert Product to JsonObject")
         {
@@ -139,6 +151,18 @@ class JsonTest extends FeatureSpec with GivenWhenThen
 	        expect(2L)(js("lval").l)
 	        expect(3.4)(js("dval").d)
 	        expect(date)(Json.parseDate(js("dateval")))
+	        
+	        when("we attempt to convert back to product")
+	        val res = Json.toProduct(js)
+	        then("conversion should be successful")
+	        assert(res.isDefined)
+	        then("Product should be the correct type")
+	        val isCorrectType = res.get match
+	            {
+                case v:Item => true
+                case _ => false
+	            }
+            assert(isCorrectType)
             }
         }
 

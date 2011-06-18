@@ -253,7 +253,7 @@ object JsonValue
     implicit def json2longSeq(j:JsonValue)    : Seq[Long]    = j.map(_.l)
     implicit def json2string(j:JsonValue)     : String       = j.s
     implicit def json2stringSeq(j:JsonValue)  : Seq[String]  = j.map(_.s)
-    implicit def json2date(j:JsonValue)       : Date         = new Date(j.s)
+    implicit def json2date(j:JsonValue)       : Date         = Json.parseDate(j)
     implicit def json2dateSeq(j:JsonValue)    : Seq[Date]    = j.map(v=>new Date(v.s))
 }
 
@@ -452,7 +452,8 @@ object Json
             new JsonObject(mp)
             }
 
-        toObject(obj)
+        val map = toObject(obj).value + ("_class_" -> JsonString(obj.getClass.getName))
+        new JsonObject(map)
         }
     
     def toString(obj:Product) =
@@ -477,6 +478,62 @@ object Json
         else 
             JsonString(str)
         }
+    
+    val registeredProducts = scala.collection.mutable.Map[String,(JsonValue)=>Product]()
+    
+    /**
+     * If you want a Product serialized by this tool to be automatically reparseable
+     * into a product, then register a function (possibly during your product's constructor)
+     * Example:
+     * <pre>
+     *  case class Item(
+     *    val sval    : String = "",
+     *    val bval    : Boolean = false,
+     *    val ival    : Int = 0,
+     *    val lval    : Long = 0L,
+     *    val dval    : Double = 0.0,
+     *    val dateval : Date = new Date
+     *  )
+     *  {
+     *  Json.registerProduct(this, {js=>
+     *      Item(
+     *          sval    = js("sval"),
+     *          bval    = js("bval"),
+     *          ival    = js("ival"),
+     *          lval    = js("lval"),
+     *          dval    = js("dval"),
+     *          dateval = js("dateval")
+     *          )
+     *      })
+     *  }
+     *
+     * </pre>
+     * 
+     * Once all desired classes have been registered, then val obj = Json.toProduct(js)
+     * should return a valid Product.
+     */
+    def registerProduct(obj: Product, creator: (JsonValue) => Product) =
+    {
+        registeredProducts += obj.getClass.getName -> creator
+    }
+
+    /**
+     * Creates a Product that has been registered here with registerProduct
+     */
+    def toProduct(js: JsonValue) : Option[Product] =
+    {
+        val className : String = js("_class_")
+        if (className.size == 0)
+            None
+        else
+        {
+            val creator = registeredProducts.get(className)
+            if (creator.isEmpty)
+                None
+            else
+                Some(creator.get(js))
+        }
+    }
 }
 
 
