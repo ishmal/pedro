@@ -26,7 +26,7 @@
 package pedro.data
 
 import java.lang.reflect.{Method,Modifier}
-
+import java.util.Date
 
 trait Data extends Product
 {
@@ -64,13 +64,21 @@ class DoubleIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[D
 {
     def get(j:JsonValue) : Double = j
 }
-class LongIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Long]    (nam)(grab)
+class IntIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Int] (nam)(grab)
+{
+    def get(j:JsonValue) : Int = j
+}
+class LongIndex(nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Long] (nam)(grab)
 {
     def get(j:JsonValue) : Long = j
 }
-class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[String] (nam)(grab)
+class StringIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[String](nam)(grab)
 {
     def get(j:JsonValue) : String = j
+}
+class DateIndex (nam: String)(val grab:(JsonValue)=>JsonValue) extends Index[Date](nam)(grab)
+{
+    def get(j:JsonValue) : Date = j
 }
 
 /**
@@ -94,6 +102,13 @@ class Kind[+T<:Data](val name: String)(jsToData:(JsonValue) => T)
         idx
         }
     
+    def intIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
+        {
+        val idx = new IntIndex(nam)(grab)
+        indx += idx
+        idx
+        }
+    
     def longIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new LongIndex(nam)(grab)
@@ -104,6 +119,13 @@ class Kind[+T<:Data](val name: String)(jsToData:(JsonValue) => T)
     def stringIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
         {
         val idx = new StringIndex(nam)(grab)
+        indx += idx
+        idx
+        }
+
+    def dateIndex(nam: String)(grab:(JsonValue)=>JsonValue) =
+        {
+        val idx = new DateIndex(nam)(grab)
         indx += idx
         idx
         }
@@ -219,7 +241,9 @@ class JdbcKvStore(opts: Map[String, String] = Map())
              }
         catch
             {
-            case e:Exception => error("connect: " + e)
+            case e:Exception =>
+                val msg = "[" + jdbcUrl + "," + jdbcUser + "," + jdbcPass + "] "
+                error("connect: " + msg + e)
                 false
             }
          }
@@ -247,9 +271,10 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return false
         schema.kinds.foreach(k=>
             {
+            val kname = "kv_" + k.name
             try
                 {
-                val stmt = conn.get.prepareStatement("drop table " + k.name)
+                val stmt = conn.get.prepareStatement("drop table " + kname)
                 stmt.execute
                 trace(stmt.toString)
                 }
@@ -259,7 +284,7 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                 }
             try
                 {
-                val stmt = conn.get.prepareStatement("create table " + k.name + 
+                val stmt = conn.get.prepareStatement("create table " + kname + 
                     " (id varchar(128) primary key, value text not null)")
                 stmt.execute
                 trace(stmt.toString)
@@ -270,10 +295,10 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                 }
             k.indices.foreach(i=>
                 {
-                val name = k.name + "_" + i.name
+                val iname = kname + "_" + i.name
                 try
                     {
-                    val stmt = conn.get.prepareStatement("drop table " + name)
+                    val stmt = conn.get.prepareStatement("drop table " + iname)
                     stmt.execute
                     trace(stmt.toString)
                     }
@@ -285,14 +310,18 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                     {
                     val stmt = i match
                         {
-                        case v:BooleanIndex => conn.get.prepareStatement("create table " + name +
+                        case v:BooleanIndex => conn.get.prepareStatement("create table " + iname +
                              " (id varchar(128) not null, value boolean not null)")
-                        case v:DoubleIndex  => conn.get.prepareStatement("create table " + name +
+                        case v:DoubleIndex  => conn.get.prepareStatement("create table " + iname +
                              " (id varchar(128) not null, value float not null)")
-                        case v:LongIndex    => conn.get.prepareStatement("create table " + name +
+                        case v:IntIndex    => conn.get.prepareStatement("create table " + iname +
                              " (id varchar(128) not null, value integer not null)")
-                        case v:StringIndex  => conn.get.prepareStatement("create table " + name +
+                        case v:LongIndex    => conn.get.prepareStatement("create table " + iname +
+                             " (id varchar(128) not null, value integer not null)")
+                        case v:StringIndex  => conn.get.prepareStatement("create table " + iname +
                              " (id varchar(128) not null, value text not null)")
+                        case v:DateIndex    => conn.get.prepareStatement("create table " + iname +
+                             " (id varchar(128) not null, value integer not null)")
                         case _ => error("create: unknown index type") ; return false
                         }
                     stmt.execute
@@ -326,7 +355,7 @@ class JdbcKvStore(opts: Map[String, String] = Map())
             }
         catch
             {
-            case e:Exception => error("connect: " + e)
+            case e:Exception => error("exists: " + e)
                 false
             }
         }
@@ -339,12 +368,13 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return false
         try
             {
+            val kname = "kv_" + kind.name
             val js = Json.toJson(data)
             trace("json: " + js.toString + "   indices:" + kind.indices.size)
-            var sql = if (exists(kind.name, data.id))
-                "update " + kind.name + " set value=? where id=?"
+            var sql = if (exists(kname, data.id))
+                "update " + kname + " set value=? where id=?"
             else
-                "insert into " + kind.name + " (value,id) values(?,?)"
+                "insert into " + kname + " (value,id) values(?,?)"
             var stmt = conn.get.prepareStatement(sql)
             stmt.setString(1, js.toString)
             stmt.setString(2, data.id)
@@ -353,9 +383,9 @@ class JdbcKvStore(opts: Map[String, String] = Map())
             stmt.close
             kind.indices.foreach(i=>
                 {
-                val name = kind.name + "_" + i.name
-                trace("index: " + name)
-                sql = "delete from " + name + " where id=?"
+                val iname = kname + "_" + i.name
+                trace("index: " + iname)
+                sql = "delete from " + iname + " where id=?"
                 stmt = conn.get.prepareStatement(sql)
                 stmt.setString(1, data.id)
                 trace("put delete index: " + stmt.toString)
@@ -368,8 +398,9 @@ class JdbcKvStore(opts: Map[String, String] = Map())
                     }
                 jsx.foreach(j=>
                     {
+                    println("j:"+j)
                     val v = i.get(j)
-                    sql = "insert into " + name + " (id,value) values(?,?)"
+                    sql = "insert into " + iname + " (id,value) values(?,?)"
                     stmt = conn.get.prepareStatement(sql)
                     stmt.setString(1, data.id)
                     stmt.setObject(2, v)
@@ -382,7 +413,8 @@ class JdbcKvStore(opts: Map[String, String] = Map())
             }
         catch
             {
-            case e:Exception => error("connect: " + e)
+            case e:Exception => error("put: " + e)
+                e.printStackTrace
                 false
             }
         }
@@ -392,7 +424,8 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return None
         try
             {
-            val stmt = conn.get.prepareStatement("select value from " + kind.name + " where id=?")
+            val kname = "kv_" + kind.name
+            val stmt = conn.get.prepareStatement("select value from " + kname + " where id=?")
             stmt.setString(1, id)
             val rs = stmt.executeQuery
             val res = if (rs.next)
@@ -414,8 +447,9 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return None
         try
             {
+            val kname = "kv_" + kind.name
             val res = scala.collection.mutable.ListBuffer[T]()
-            var stmt = conn.get.prepareStatement("select value from " + kind.name)
+            var stmt = conn.get.prepareStatement("select value from " + kname)
             var rs = stmt.executeQuery
             while (rs.next)
                 {
@@ -439,23 +473,26 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return None
         try
             {
+            val kname = "kv_" + kind.name
             val ids = scala.collection.mutable.ListBuffer[String]()
-            val iname = kind.name + "_" + index.name
+            val iname = kname + "_" + index.name
             var stmt = conn.get.prepareStatement("select id,value from " + iname)
             var rs = stmt.executeQuery
             while (rs.next)
                 {
                 index match
                     { //here is where comp() is used to filter values & their ids
-                    case v:BooleanIndex    => if (comp(rs.getBoolean(2))) ids += rs.getString(1)
-                    case v:DoubleIndex     => if (comp(rs.getDouble(2)))  ids += rs.getString(1)
-                    case v:LongIndex       => if (comp(rs.getInt(2)))     ids += rs.getString(1)
-                    case v:StringIndex     => if (comp(rs.getString(2)))  ids += rs.getString(1)
+                    case v:BooleanIndex    => if (comp(rs.getBoolean(2)))       ids += rs.getString(1)
+                    case v:DoubleIndex     => if (comp(rs.getDouble(2)))        ids += rs.getString(1)
+                    case v:IntIndex        => if (comp(rs.getInt(2)))           ids += rs.getString(1)
+                    case v:LongIndex       => if (comp(rs.getLong(2)))          ids += rs.getString(1)
+                    case v:StringIndex     => if (comp(rs.getString(2)))        ids += rs.getString(1)
+                    case v:DateIndex       => if (comp(new Date(rs.getInt(2)))) ids += rs.getString(1)
                     }
                 }
             stmt.close
             val res = scala.collection.mutable.ListBuffer[T]()
-            val sql = "select value from " + kind.name +
+            val sql = "select value from " + kname +
                  " where id in " + ids.map(_=>"?").mkString("(", ",",")")
             stmt = conn.get.prepareStatement(sql)
             ids.zipWithIndex.foreach(s=> stmt.setString(s._2+1, s._1))
@@ -484,14 +521,15 @@ class JdbcKvStore(opts: Map[String, String] = Map())
         if (!checkConnect) return false
         try
             {
-            var stmt = conn.get.prepareStatement("delete from " + kind.name + " where id=?")
+            val kname = "kv_" + kind.name
+            var stmt = conn.get.prepareStatement("delete from " + kname + " where id=?")
             stmt.setString(1, id)
             val rs = stmt.execute
             stmt.close
             kind.indices.foreach(i=>
                 {
-                val name = kind.name + "_" + i.name
-                stmt = conn.get.prepareStatement("delete from " + name + " where id=?")
+                val iname = kname + "_" + i.name
+                stmt = conn.get.prepareStatement("delete from " + iname + " where id=?")
                 stmt.setString(1, id)
                 val rs = stmt.execute
                 stmt.close

@@ -26,6 +26,10 @@
 package pedro.data
 
 
+import java.util.Date
+
+
+
 /**
  * Common trait for all of the different JsonValue types.  Has common serialization
  * code and methods that should be visible for any JsonValue.  The purpose is to
@@ -232,6 +236,8 @@ object JsonValue
     implicit def json2longSeq(j:JsonValue)    : Seq[Long]    = j.map(_.i)
     implicit def json2string(j:JsonValue)     : String       = j.s
     implicit def json2stringSeq(j:JsonValue)  : Seq[String]  = j.map(_.s)
+    implicit def json2date(j:JsonValue)       : Date         = new Date(j.s)
+    implicit def json2dateSeq(j:JsonValue)    : Seq[Date]    = j.map(v=>new Date(v.s))
 }
 
 
@@ -451,19 +457,19 @@ object Json
 /**
  * A simple parser for reading JSON data as defined at http://json.org .
  */ 
-class JsonParser(debug: Boolean = false)
+class JsonParser(debug: Boolean = false) extends pedro.util.Logged
 {
     /**
      * Overrideable to allow message redirection, such as log.trace()
      */         
-    def trace(str: String) =
-        if (debug) pedro.log.trace("JsonParser: " + str)
+    override def trace(str: String) =
+        if (debug) super.trace(str)
 
     /**
      * Overrideable to allow message redirection, such as log.error()
      */         
-    def error(pos: Int, str: String) =
-        pedro.log.error("JsonParser error (" + pos + "): " + str)
+    def error(pos: Int, str: String) : Unit =
+        error("JsonParser error (" + pos + "): " + str)
 
     private val EOF = (-1).asInstanceOf[Char]
 
@@ -533,7 +539,7 @@ class JsonParser(debug: Boolean = false)
                             }
                         case _ =>
                             {
-                            error(p, "unknown escape in string")
+                            error(p, "unknown escape in string: '" + ch2 + "'")
                             return ("", -1)
                             }
                         } // ch2
@@ -750,7 +756,7 @@ class JsonParser(debug: Boolean = false)
 /**
  * A simple parser for reading JSON data as defined at http://json.org .
  */ 
-object JsonParser
+object JsonParser extends pedro.util.Logged
 {
     /**
      * Parse a string to a JsonValue.
@@ -777,15 +783,15 @@ object JsonParser
             val str = scala.io.Source.fromURL(new java.net.URL(urls)).mkString
             if (debug)
                 {
-                println("######################### From :" + urls)
-                println(str)
-                println("#########################")
+                trace("######################### From :" + urls)
+                trace(str)
+                trace("#########################")
                 }
             parse(str, debug)
             }
         catch
             {
-            case e: Exception => println("JsonParser.parseURL: " + e)
+            case e: Exception => error("JsonParser.parseURL: " + e)
             None
             }
         }
@@ -800,15 +806,15 @@ object JsonParser
             val str = scala.io.Source.fromFile(fname)("UTF-8").mkString
             if (debug)
                 {
-                println("######################### From :" + fname)
-                println(str)
-                println("#########################")
+                trace("######################### From :" + fname)
+                trace(str)
+                trace("#########################")
                 }
             parse(str, debug)
             }
         catch
             {
-            case e: Exception => println("JsonParser.parseFile: " + e)
+            case e: Exception => error("JsonParser.parseFile: " + e)
             None
             }
         }
@@ -832,25 +838,13 @@ class JsonPush(
     val threshold: Int = 0,
     val f: (JsonObject)=>Unit = _ => (),
     val debug: Boolean = false
-    )
+    ) extends pedro.util.Logged
 {
     var depth   = 0       // how nested in tags?
     var inQuote = false   // we are in " ... "
     var escaped = false   // is it possible that " is escaped?
     
     val buf = new StringBuilder
-
-    /**
-     * Overrideable to allow message redirection, such as log.trace()
-     */         
-    def trace(str: String) =
-        if (debug) println("JsonPush: " + str)
-
-    /**
-     * Overrideable to allow message redirection, such as log.error()
-     */         
-    def error(str: String) =
-        println("JsonPush error: " + str)
 
     private def reset
         {
@@ -921,112 +915,18 @@ object JsonPush
     def parse(str: String = "", depth:Int = 0)(f: (JsonValue)=>Unit) : Boolean =
         {
         val parser = new JsonPush(depth, f)
+        //the following means, no character passed to the parser can return a None
         !str.exists{ch => (parser + ch) == None}
         }
 
     def parseFile(fname: String, depth:Int = 0)(f: (JsonValue)=>Unit) : Boolean =
         {
         val parser = new JsonPush(depth, f)
+        //the following means, no character passed to the parser can return a None
         !scala.io.Source.fromFile(fname).exists{ch => (parser + ch) == None}
         }
 }
 
 
 
-
-/**/
-// TEST
-
-object JsonTest
-{
-    val str = 
-"""
-{
-    "string" : "hello, world, \uabcd",
-    "double" : 1.234,
-    "boolean" : true,
-    "integer" : 12345,
-    "nil"     : null,
-    "array"   :
-        [
-        "hello, world",
-        1.234,
-        true,
-        12345,
-        null
-        ],
-    "object"  :
-        {
-        "string" : "hello, world",
-        "double" : 1.234,
-        "boolean" : true,
-        "integer" : 12345,
-        "nil"     : null
-        }
-}
-"""
-
-    val multi = 
-"""
-{
-    "object1"  :
-        {
-        "string" : "hello, world",
-        "double" : 1.234,
-        "boolean" : true,
-        "integer" : 12345,
-        "nil"     : null
-        }
-}
-{
-    "object2"  :
-        {
-        "string" : "hello, world",
-        "double" : 1.234,
-        "boolean" : true,
-        "integer" : 12345,
-        "nil"     : null
-        }
-}
-"""
-    def valueTest =
-        {
-        println("##### parsing string:\n" + str)
-        val res = JsonParser.parse(str)
-        if (res.isDefined)
-            {
-            println("### plain :\n" + res.get.toString)
-            println("### pretty:\n" + res.get.pretty)
-            }
-        else
-            println("### failed")
-        }
-
-   def multiTest =
-        {
-        println("##### parsing string:\n" + multi)
-        JsonPush.parse(multi)(js =>
-            {
-            println("## js: " + js.pretty)
-            })
-        }
-    
-    def testLimo =
-        {
-        val str = """["AB\\CD","\x41BCD",324,23,true,"AB\u0043D"]"""
-        val js = JsonParser.parse(str)
-        js.get.foreach(println)
-        println("string 0 : " + js.get(0).s)
-        }
-
-    def main(argv: Array[String]) =
-        {
-        valueTest
-        multiTest
-        testLimo
-        }
-}
-
-
-/**/
 

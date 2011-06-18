@@ -1,7 +1,9 @@
 
 
 
-package pedro.test
+package pedro.data
+
+import java.util.Date
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -11,35 +13,49 @@ import org.scalatest.{FeatureSpec,GivenWhenThen}
 import pedro.data.{Data,Schema,StringIndex,Kind,JdbcKvStore}
 
 
-case class User(
-    val id : String = "",
-    val name: String = "",
-    val tags : Array[String] = Array()
-) extends pedro.data.Data
-{}
-
-object TestSchema extends Schema
-{
-    val users = new Kind("users")(js=>
-        {
-        User(
-            id=js("id"),
-            name=js("name")
-            )
-        })
-        {
-        add(this)
-        val byName = stringIndex("name")(js=>js("name"))
-        val byTag  = stringIndex("tags")(js=>js("tags"))
-        }
-}
-
-
-import TestSchema._
 
 @RunWith(classOf[JUnitRunner])
 class KvStoreTest extends FeatureSpec with GivenWhenThen with MustMatchers
 {
+	case class Item(
+	    val id : String  = "",
+	    val sval: String = "",
+	    val ival: Int    = 0,
+	    val lval: Long   = 0L,
+	    val dval: Double = 0.0,
+	    val dateval: Date = new Date,
+	    val tags : Seq[String] = Seq()
+	) extends pedro.data.Data
+	{}
+	
+	object TestSchema extends Schema
+	{
+	    val items = new Kind("items")(js=>
+	        {
+	        Item(
+	            id=js("id"),
+	            sval=js("sval"),
+	            ival=js("ival"),
+	            lval=js("lval"),
+	            dval=js("dval"),
+	            dateval=js("dateval"),
+	            tags=js("tags")
+	            )
+	        })
+	        {
+	        add(this)
+	        val byName   = stringIndex("name")(js=>js("name"))
+	        val byStr    = stringIndex("sval")(js=>js("sval"))
+	        val byInt    = intIndex("ival")(js=>js("ival"))
+	        val byLong   = longIndex("lval")(js=>js("lval"))
+	        val byDouble = doubleIndex("dval")(js=>js("dval"))
+	        val byDate   = dateIndex("dateval")(js=>js("dateval"))
+	        val byTag    = stringIndex("tags")(js=>js("tags"))
+	        }
+	}
+
+import TestSchema._
+
     feature("The KeyValue store can put/get/query and delete records on a backend")
         {
         scenario("The store should be able to connect and disconnect")
@@ -55,38 +71,38 @@ class KvStoreTest extends FeatureSpec with GivenWhenThen with MustMatchers
             then("the return value should be true")
             result must be === true
 
-            when("a new User is added")
-            val user1 = new User(id="rwj", tags=Array("big","tall"))
-            result = store.put(users,user1)
+            when("a new Item is added")
+            val item1 = new Item(id="rwj", tags=Array("big","tall"))
+            result = store.put(items,item1)
             then("the return value should be true")
             result must be === true
 
-            when("a new User is added")
-            val user2 = new User(id="jd", tags=Array("handsome","gregarious"))
-            result = store.put(users,user2)
+            when("a new Item is added")
+            val item2 = new Item(id="jd", tags=Array("handsome","gregarious"))
+            result = store.put(items,item2)
             then("the return value should be true")
             result must be === true
 
-            when("a new User is added")
-            val user3 = new User(id="kb", tags=Array("dance","fever"))
-            result = store.put(users,user3)
+            when("a new Item is added")
+            val item3 = new Item(id="kb", tags=Array("dance","fever"))
+            result = store.put(items,item3)
             then("the return value should be true")
             result must be === true
 
-            when("a user is queried")
-            val xs = store.query(users, users.byTag, {s:String=> s=="big"})
+            when("a item is queried")
+            val xs = store.query(items, items.byTag, {s:String=> s=="big"})
             then("the return value should be > 0")
             println("1#########"); xs.get.foreach(println)
             xs.isDefined must be === true
             xs.get.size must be > 0
 
-            when("a user is deleted")
-            result = store.delete(users, "rwj")
+            when("a item is deleted")
+            result = store.delete(items, "rwj")
             then("the return value should be true")
             result must be === true
             
-            when("2 a user is queried after deletion")
-            val xs2 = store.query(users, users.byTag, {s:String=> s=="big"})
+            when("2 a item is queried after deletion")
+            val xs2 = store.query(items, items.byTag, {s:String=> s=="big"})
             then("the return value should be == 0")
             println("2######### "+ xs2.size); xs2.get.foreach(println)
             xs2.isDefined must be === true
