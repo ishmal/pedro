@@ -23,7 +23,7 @@
 
 package pedro.net.oauth
 
-import pedro.data.{Data,Kind,Schema,JsonValue,JdbcKvStore}
+import pedro.data.{Data}
 import pedro.net.servlet.{Servlet,Request,Response}
 
 
@@ -37,37 +37,11 @@ case class App(
 ) extends Data
 {}
 
-object App
-{
-    def fromJson(j: JsonValue) : App =
-        App(
-            id       = j("id"),
-            org      = j("org"),
-            desc     = j("desc"),
-            url      = j("url"),
-            userid   = j("userid"),
-            password = j("password")
-        )
-}
-
-
-object OAuthSchema extends Schema
-{
-    val app = new Kind[App]("app")(j=> App.fromJson(j))
-}
-
-
-object Db extends JdbcKvStore
-{
-    
-}
-
-
-import OAuthSchema._
 
 
 class RegistryServlet extends Servlet
 {
+    /**
     override def doGet(req: Request, resp: Response) =
         {
         resp + """
@@ -110,7 +84,7 @@ class RegistryServlet extends Servlet
             </html>
         """
         }
-
+    */
     override def doPost(req: Request, resp: Response) =
         {
         
