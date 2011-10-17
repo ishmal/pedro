@@ -27,18 +27,24 @@
 package pedro.data
 
 
-
+/**
+ * This is a simple Csv reader that performs just a little bit more reasoning
+ * while parsing a CSV file.  The largest decision is whether to treat a field
+ * as quoted or not.   We try to make the correct decision.
+ */   
 class CsvReader extends pedro.util.Logged
 {
     /**
      * Public, so that it can be overridden to redirect msgs
      */         
     def error(pos: Int, str: String) : Unit =
-        error("CsvReader error (" + pos + "): " + str)
+        error("CsvReader error (" + lineNr + "/" + pos + "): " + str)
 
     private val EOF = (-1).asInstanceOf[Char]
 
     private var parsebuf = ""
+    
+    private var lineNr = 0
     
     private val hexMatcher    = "[0-9a-fA-F]{4}".r 
     
@@ -114,10 +120,11 @@ class CsvReader extends pedro.util.Logged
 
 
     /**
-     * Parse line for CSV values.  Return empty list on failure
+     * Parse line for CSV values.  Return None on failure
      */         
-    def parse(s: String) : Seq[String] =
+    def parse(s: String) : Option[Seq[String]] =
         {
+        lineNr += 1
         val xs = scala.collection.mutable.ListBuffer[String]()
         parsebuf = s
         val len = s.size
@@ -130,7 +137,7 @@ class CsvReader extends pedro.util.Logged
                 {
                 val ret = quotedString(pos+1)
                 if (ret._2<0)
-                    return xs.toList
+                    return Some(xs.toList)
                 else
                     {
                     xs += ret._1
@@ -164,27 +171,51 @@ class CsvReader extends pedro.util.Logged
                 pos += 1
             }
         if (pos != len)
+            {
             error(pos, "expected end-of-line or comma")
-        xs.toList
+            None
+            }
+        else
+            Some(xs.toSeq)
         }
 
     /**
-     * Parse a file for CSV lines.   Call f() for each line
+     * Parse a file for CSV lines.   Return a list of lists of Strings.  None on failure
      */         
-    def parseFile(fname: String)(f: (Seq[String]) => Unit) =
+    def parseFile(fname: String) : Option[Seq[Seq[String]]] =
         {
+        lineNr = 0
+        val buf = scala.collection.mutable.ListBuffer[Seq[String]]()
         try
             {
-            scala.io.Source.fromFile(fname).getLines().foreach(s=> f(parse(s)))
+            scala.io.Source.fromFile(fname).getLines().foreach(s=>
+                {
+                val res = parse(s)
+                if (!res.isDefined)
+                    return None
+                else
+                    buf.append(res.get)
+                })
             }
         catch
             {
-            case e:Exception => error("parseFile: " + e)
+            case e:Exception => error(0, "parseFile:" + e) ; None
+            case e:Exception => error(0, "parseFile (possibly error in passed function): " + e) ; None
             }
+        
+        Some(buf.toSeq)
         }
 }
 
 
+/**
+ * This is a simple Csv writer that does its best to serialize a Seq of data
+ * in a manner that will allow a subsequent reader to load the data 
+ * undamaged.
+ * 
+ * @todo:  do we want to save as only strings, or in a manner according
+ * to the type of the individual fields?     
+ */   
 class CsvWriter extends pedro.util.Logged
 {
     private val hex = "0123456789abcdef".toCharArray
@@ -268,16 +299,16 @@ class CsvWriter extends pedro.util.Logged
 object Csv
 {
     /**
-     * Parse line for CSV values.  Return empty list on failure
+     * Parse line for CSV values.  Return None on failure
      */         
-    def parse(s:String) : Seq[String] =
+    def parse(s:String) : Option[Seq[String]] =
         (new CsvReader).parse(s)
 
     /**
      * Parse a file for CSV lines.   Call f() for each line
      */         
-    def parseFile(fname: String)(f: (Seq[String]) => Unit = {a:Seq[String]=>} ) =
-        (new CsvReader).parseFile(fname)(f)
+    def parseFile(fname: String) : Option[Seq[Seq[String]]] =
+        (new CsvReader).parseFile(fname)
         
     /**
      * Convert a list of lists of data to a CSV string
