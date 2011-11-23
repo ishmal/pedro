@@ -356,52 +356,6 @@ class OAuth1Client(
 }
 
 
-/**
- * Tester for OAuth1
- */ 
-object OAuth1
-{
-    
-    val ishmal = OAuth1Account(
-        name              = "ishmal", 
-        consumerKey       = "HANSFDpLzvHUTthlX1hWyQ",
-        consumerSecret    = "Gv4N0W4wctWZgYw12XawReBRZuDjTbDOFYVAfme0",
-        requestTokenURL   = "https://api.twitter.com/oauth/request_token",
-        authURL           = "https://api.twitter.com/oauth/authorize",
-        accessURL         = "https://api.twitter.com/oauth/access_token",
-        accessToken       = "", // "14972938-KdUE6FajG004tFydlr6gfn7Btb5IiMweMNMUmi6Ar",
-        accessTokenSecret = ""  // "rTyNT9fCJQxHbK3BKR7Gxg3FLi0O21wZ01yd6ETPkq0"
-        )
-
-    val scalaNode = OAuth1Account(
-        name              = "ScalaNode", 
-        consumerKey       = "HANSFDpLzvHUTthlX1hWyQ",
-        consumerSecret    = "Gv4N0W4wctWZgYw12XawReBRZuDjTbDOFYVAfme0",
-        requestTokenURL   = "https://api.twitter.com/oauth/request_token",
-        authURL           = "https://api.twitter.com/oauth/authorize",
-        accessURL         = "https://api.twitter.com/oauth/access_token",
-        accessToken       = "148793247-itlErNBMqmRLeA2UAjWxSglFFPM7wifWfy48zMw2",
-        accessTokenSecret = "FMvcp4zuYBnKPIKj0Wj7Qq7qb1ldxTD9rDi1Q4uYQo"
-        )
-    
-    def doTest1 =
-        {
-        val oauth = new OAuth1Client(scalaNode, true)
-        oauth.doPost("http://api.twitter.com/1/statuses/update.json", Map("status"->"fixed again"))
-        }
-
-    def doTest2 =
-        {
-        val oauth = new OAuth1Client(scalaNode, true)
-        val res = oauth.doGet("http://search.twitter.com/search.json", Map("q"->"#earthquake"))
-        if (res.isDefined)
-            println("res: " + res.get)
-        }
-
-
-   def main(argv: Array[String]) =
-       doTest2
-}
 
 //########################################################################
 //### O A U T H   2
@@ -528,37 +482,6 @@ class OAuth2Client(
 }
 
 
-/**
- * Tester for OAuth2
- */ 
-object OAuth2
-{
-    
-    val scalaNode = OAuth2Account(
-        name           = "ScalaNode", 
-        clientId       = "126170977420983",
-        clientSecret   = "9920407ac77e7688591d32aed44aa155",
-        authURL        = "https://graph.facebook.com/oauth/authorize",
-        accessTokenURL = "https://graph.facebook.com/oauth/access_token",
-        redirectURL    = "https://www.facebook.com/connect/login_success.html",
-        accessToken    = "126170977420983|c_IyFUdR73xZR-sPKd1SXrnyYds."
-        )
-    
-    def doTest =
-        {
-        val oauth = new OAuth2Client(scalaNode)
 
-        val resp = oauth.doGet("https://graph.facebook.com/btaylor")
-        if (resp.isEmpty)
-            println("Failed")
-        else
-            println("##### result:\n" + resp.get)
-        }
-
-   def main(argv: Array[String]) =
-       {
-       doTest
-       }
-}
 
 
