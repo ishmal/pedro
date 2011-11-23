@@ -2,7 +2,7 @@
  *  This is a simple implementation of OAuth for Scala.
  *
  *  Author: Bob Jamison
- *  Copyright, 2010 
+ *  Copyright, 2011
  *    
  *  
  *  This program is free software: you can redistribute it and/or modify
