@@ -188,14 +188,14 @@ class CsvReader extends pedro.util.Logged
         val buf = scala.collection.mutable.ListBuffer[Seq[String]]()
         try
             {
-            scala.io.Source.fromFile(fname).getLines().foreach(s=>
+            for (s <- scala.io.Source.fromFile(fname).getLines())
                 {
                 val res = parse(s)
                 if (!res.isDefined)
                     return None
                 else
                     buf.append(res.get)
-                })
+                }
             }
         catch
             {
@@ -235,7 +235,7 @@ class CsvWriter extends pedro.util.Logged
         else
             {
             buf.append('"')
-            ins.foreach(ch=>
+            for (ch <- ins)
                 {
                 if (ch == '\\')                buf.append("\\\\")
                 else if (ch == '\f')           buf.append("\\f")
@@ -247,7 +247,7 @@ class CsvWriter extends pedro.util.Logged
                 else buf.append("\\u").
                      append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
                      append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-                })
+                }
             buf.append('"')
             }
         }
@@ -255,7 +255,7 @@ class CsvWriter extends pedro.util.Logged
     private def writeLine(buf: StringBuilder, line:Seq[Any]) =
         {
         var comma = ""
-        line.foreach(f =>
+        for (f <- line)
             {
             buf.append(comma)
             f match
@@ -264,14 +264,14 @@ class CsvWriter extends pedro.util.Logged
                 case v => buf.append(v.toString)
                 }
             comma = ","
-            })
+            }
         buf.append("\n")        
         }
 
     def toString(lines: Seq[Seq[Any]]) : String =
         {
         val buf = new StringBuilder
-        lines.foreach(a=> writeLine(buf, a))
+        for (a <- lines) writeLine(buf, a)
         buf.toString
         }
 

@@ -206,7 +206,7 @@ class Element(
         {
         def xmlStr(ins: String, buf:StringBuilder)  =
             {
-            ins.foreach(ch=>
+            for (ch <- ins)
                 {
                 if (ch == '"')                 buf.append("&quot;")
                 else if (ch == '\'')           buf.append("&apos;")
@@ -220,7 +220,7 @@ class Element(
                 else buf.append("&#x").
                      append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
                      append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-                })
+                }
             }
 
         def elemOut(elem: Element, indent: Int, buf: StringBuilder) : Unit =

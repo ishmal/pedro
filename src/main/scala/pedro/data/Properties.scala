@@ -26,6 +26,8 @@
 package pedro.data
 
 
+import scala.collection.JavaConversions._
+
 
 /**
  * A very simple Scala wrapper of Properties.  Loads and/or stores a
@@ -42,28 +44,22 @@ object Properties
             val props = new java.util.Properties
             props.load(file)
             file.close
-            val iter = props.entrySet.iterator
-            val vals = scala.collection.mutable.Map[String,String]()
-            while (iter.hasNext) //dont really need JavaConversion
-                {
-                val item = iter.next
-                vals += item.getKey.toString -> item.getValue.toString
-                }
-            Some(vals.toMap.withDefaultValue(""))
+            val tuples = props.entrySet.map(a => (a.getKey.toString, a.getValue.toString))
+            Some(tuples.toMap.withDefaultValue(""))
             }
         catch
             {
             case e:Exception => pedro.log.error("Properties.loadFile: " + e)
             None
             }
-        }    
+        }
 
     def saveFile(sprops: Map[String,String], fname: String) : Boolean =
         {
         try
             {
             val jprops = new java.util.Properties
-            sprops.foreach(a=> jprops.put(a._1, a._2))
+            for (a <- sprops) jprops.put(a._1, a._2)
             val file = new java.io.FileOutputStream(fname)
             jprops.store(file, "Scala Properties: " + fname)
             file.close

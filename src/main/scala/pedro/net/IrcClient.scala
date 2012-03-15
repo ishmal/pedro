@@ -73,7 +73,7 @@ class IrcClient(
     val defaultChannel: String = "",
     val observer: Actor = new IrcClientObserver,
     val debug: Boolean  = false
-    )
+    ) extends pedro.util.Logged
 {
     //########################################################################
     //# STANDARD   Irc   CHAT   DEFINITIONS
@@ -286,18 +286,6 @@ class IrcClient(
     val CMD_PONG             = 1008
 
 
-    /**
-     * Public so it can be overridden
-     */
-    def trace(msg: String) =
-        if (debug) pedro.log.trace("IrcClient: " + msg)
-
-    /**
-     * Public so it can be overridden
-     */
-    def error(msg: String) =
-        pedro.log.error("IrcClient error: " + msg)
-        
     def status(msg: String) =
         observer!IrcStatus(msg)
 
@@ -690,6 +678,10 @@ class IrcClient(
         true
         }
 }
+
+
+
+
 
 class IrcClientObserver extends Actor
 {

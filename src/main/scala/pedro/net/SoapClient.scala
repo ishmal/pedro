@@ -28,14 +28,8 @@ package pedro.net
 import scala.xml.{Elem,XML}
 
 
-class SoapClient
+class SoapClient extends pedro.util.Logged
 {
-
-    private def error(msg: String) =
-        {
-        println("SoapClient error: " + msg)
-        }
-
     /**
      * Call this function with the SOAP content part.  Will return the complete
      * serialized message
@@ -85,6 +79,7 @@ object SoapTest
 {
     def doTest1 =
         {
+        println("=== test1")
         val host = "https://apitest.authorize.net/soap/v1/Service.asmx"
         val req  = <IsAlive xmlns="https://api.authorize.net/soap/v1/"/>
         val cli = new SoapClient
@@ -98,6 +93,7 @@ object SoapTest
 
     def doTest2 =
         {
+        println("=== test2")
         val host = "http://ws.cdyne.com/WeatherWS/Weather.asmx"
         val req  = <GetCityForecastByZIP xmlns="http://ws.cdyne.com/WeatherWS/">
                      <ZIP>77058</ZIP>

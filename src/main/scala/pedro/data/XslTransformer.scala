@@ -33,7 +33,7 @@ import javax.xml.transform.stream.{StreamSource, StreamResult}
  * A wrapper to provide on-the-fly xsm transformation of servlet
  * output
  */  
-class XslTransformer(stylesheet: String)
+class XslTransformer(stylesheet: String) extends pedro.util.Logged
 {
     private val source =
         new StreamSource(new java.io.ByteArrayInputStream(stylesheet.getBytes))
@@ -41,82 +41,36 @@ class XslTransformer(stylesheet: String)
     private val transformer =
         javax.xml.transform.TransformerFactory.newInstance.newTransformer(source)
 
-    def transform(ins: java.io.InputStream, outs: java.io.OutputStream) =
+    def transform(ins: java.io.InputStream, outs: java.io.OutputStream) : Boolean =
         {
+        var res = true
         try
             {
             transformer.transform(new StreamSource(ins), new StreamResult(outs))
             }
         catch
             {
-            case e: Exception => println("XslTransformer: " + e) // log me
+            case e: Exception => error("XslTransformer: " + e) // log me
+            res = false
             }
         transformer.reset
+        res
         }
 
-    def transform(ins: java.io.Reader, outs: java.io.Writer) =
-        {
-        try
-            {
-            transformer.transform(new StreamSource(ins), new StreamResult(outs))
-            }
-        catch
-            {
-            case e: Exception => println("XslTransformer: " + e) // log me
-            }
-        transformer.reset
-        }
-
-    def transform(instr: String) : String =
+    def transform(instr: String) : Option[String] =
         {
         val ins = new java.io.ByteArrayInputStream(instr.getBytes)
         val outs = new java.io.ByteArrayOutputStream
-        transform(ins, outs)
-        outs.toString("UTF-8")
+        if (transform(ins, outs))
+            Some(outs.toString("UTF-8"))
+        else
+            None
         }
 
 }
 
 
 
-
-class XslWriter(out: java.io.Writer, xsl: String) extends java.io.PrintWriter(out)
-{
-    def this(out: java.io.OutputStream, xsl: String) =
-        this(new java.io.OutputStreamWriter(out), xsl)
-
-    private val transformer = new XslTransformer(xsl)
-
-    private val buf = new StringBuilder
-    
-    /**
-     * Next 3 overrides required by Writer
-     */         
-    override def write(chars: Array[Char], off: Int, len: Int) =
-        buf.appendAll(chars, off, len)
-        
-    override def flush =
-        out.flush
-
-    override def close =
-        {
-        val xmlStr = buf.toString
-        print("str: '" + xmlStr + "'")
-        val str = transformer.transform(xmlStr)
-        out.write(str)
-        out.close
-        }
-
-    /**
-     * Override these PrintWriter output methods that use 'out'
-     */         
-    override def write(ch: Int) =
-        buf.append(ch.asInstanceOf[Char])
-
-    override def write(str: String, offset: Int, count: Int) =
-        buf.appendAll(str.toCharArray, offset, count)
-
-}
 
 
 object XslTransformer
@@ -171,11 +125,13 @@ object XslTransformer
 
     def doTest =
         {
-        val baos = new java.io.ByteArrayOutputStream
-        val out = new XslWriter(baos, xsl)
-        out.write(xml)
-        out.close
-        println(baos.toString)
+        println("==== XslTransform test ====")
+        val trans = new XslTransformer(xsl)
+        val out = trans.transform(xml)
+        if (out.isEmpty)
+            println("failed")
+        else
+            println("success:\n" + out.get)
         }
 
     def main(argv: Array[String]) =
