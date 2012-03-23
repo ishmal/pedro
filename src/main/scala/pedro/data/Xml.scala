@@ -271,7 +271,8 @@ object Element
      * This is intended for serializing case classes.  We do not try
      * to serialize everything, only Products, sequences, and a set
      * of expected primitive values.
-     */                   
+     */           
+     /*        
     def toXml(name: String, obj: Product) : Element =
         {
         def scan(clazz: Class[_]) : Map[String, Method] =
@@ -284,14 +285,15 @@ object Element
                 })
 
         def toArray(name: String, arr: Seq[_]) : List[Element] =
-            arr.collect{case o:java.lang.Object => o}.map(obj => toElement(name, obj)).toList
+            arr.collect{case o:AnyRef => o}.map(obj => toElement(name, obj)).toList
 
         //TODO: recode this with Product when it no longer sucks
-        def toElement(name: String, obj: java.lang.Object) : Element =
+        def toElement(name: String, obj: AnyRef) : Element =
             {
             val attrs = scala.collection.mutable.Map[String, Attribute]()
             val children = scala.collection.mutable.ListBuffer[Element]()
-            for (m <- scan(obj.getClass))
+            val jobj = obj.asInstanceOf[java.lang.Object]
+            for (m <- scan(jobj.getClass))
                 {
                 val name  = m._1
                 val value = m._2.invoke(obj)
@@ -310,6 +312,7 @@ object Element
          
         toElement(name, obj)
         }
+        */
 }
 
 
@@ -583,7 +586,7 @@ object XmlPush
         true
         }
     
-    def main(argv: Array[String]) =
+    def main(argv: Array[String]) : Unit =
         parseFile("test.xml")(elem=> 
             {
             println("xml:" + elem.toXml)

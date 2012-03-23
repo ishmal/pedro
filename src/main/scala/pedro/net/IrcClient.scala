@@ -83,10 +83,10 @@ class IrcClient(
      * is local to the server. If any server is passed a numeric in this range
      * from another server then it is remapped to 100-199
      */
-    val RPL_WELCOME          = 001
-    val RPL_YOURHOST         = 002
-    val RPL_CREATED          = 003
-    val RPL_MYINFO           = 004
+    val RPL_WELCOME          =   1
+    val RPL_YOURHOST         =   2
+    val RPL_CREATED          =   3
+    val RPL_MYINFO           =   4
     
     /**
      * Errors are in the range from 400-599 currently and are grouped by what
@@ -762,11 +762,12 @@ object IrcClientTest
 
     def doTest =
         {
-        val cli = new IrcClient(debug=true, defaultChannel="#scala",observer=new IrcClientObserver)
+        val cli = new IrcClient(debug=true, defaultChannel="#scala",
+            nick="pedrobot", observer=new IrcClientObserver)
         cli.connect
         }
 
-    def main(argv: Array[String]) =
+    def main(argv: Array[String]) : Unit =
         doTest
 
 }
@@ -779,7 +780,7 @@ class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
 {
     var host    = "irc.freenode.net"
     var port    = 6667
-    var nick    = "nonick"
+    var nick    = "pedrobot"
     var channel = "#scala"
 
     def error(msg: String) =
@@ -849,7 +850,7 @@ object IrcBot
         bot.startup
         }
     
-    def main(argv: Array[String]) =
+    def main(argv: Array[String]) : Unit =
         doTest
 }
 

@@ -1,10 +1,10 @@
 name := "Pedro"
 
-version := "0.10.1"
+version := "0.10.2"
 
 organization := "org.pedro"
 
-scalaVersion := "2.9.1"
+scalaVersion := "2.10.0-M1"
 
 libraryDependencies ++= Seq(
   "org.scalatest"        % "scalatest_2.9.1"  % "1.6.1"     % "compile,test",
@@ -15,3 +15,6 @@ libraryDependencies ++= Seq(
   "org.apache.thrift"    % "libthrift"        % "0.6.1"     % "compile,test"
 )
 
+scalacOptions += "-deprecation"
+
+scalacOptions += "-unchecked"

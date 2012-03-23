@@ -254,7 +254,7 @@ object JsonValue
     implicit def json2string(j:JsonValue)     : String       = j.s
     implicit def json2stringSeq(j:JsonValue)  : Seq[String]  = j.map(_.s)
     implicit def json2date(j:JsonValue)       : Date         = Json.parseDate(j)
-    implicit def json2dateSeq(j:JsonValue)    : Seq[Date]    = j.map(v=>new Date(v.s))
+    implicit def json2dateSeq(j:JsonValue)    : Seq[Date]    = j.map(v=>Json.parseDate(v))
 }
 
 
@@ -443,7 +443,7 @@ object Json
             }
 
         def toArray(arr: Iterable[_]) : JsonArray =
-            new JsonArray(arr.map(convert).toList)
+            new JsonArray(arr.map(v=>convert(v)).toList)
 
         //TODO: recode this with Product when it no longer sucks
         def toObject(obj: Product) : JsonObject =

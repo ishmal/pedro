@@ -28,6 +28,10 @@
 package pedro.net.amqp
 
 
+//########################################################################
+//# A M Q P    S E R V I C E
+//########################################################################
+
 /**
  * Some handy constants
  */ 
@@ -122,45 +126,28 @@ trait Connection
 trait Container
 {
     
-    val connection : Connection
+    def connection : Connection
     
-    private val sess = scala.collection.mutable.ListBuffer[Session]()
-    def sessions : Seq[Session] =
-        sess.toList
+    def sessions : Seq[Session] =  List()
 
-    private val prods = scala.collection.mutable.ListBuffer[Producer]()
-    def producers : Seq[Producer] =
-        prods.toList
+    def producers : Seq[Producer] = List()
 
-    private val cons = scala.collection.mutable.ListBuffer[Consumer]()
-    def consumers : Seq[Consumer] =
-        cons.toList
+    def consumers : Seq[Consumer] = List()
 
-    private val ques = scala.collection.mutable.ListBuffer[Queue]()
-    def queues : Seq[Queue] =
-        ques.toList
+    def queues : Seq[Queue] = List()
 }
 
 
-class AmqpValue
+//########################################################################
+//# A M Q P    V A L U E S
+//########################################################################
+
+
+trait AmqpValue
 {
-    //override for each type
-    def typ   : Int = 0
-    //override for each type
-    def size  : Int = 0   //number of bytes after constructor or count
-    //override for each type
-    def widen : AmqpValue = this
-    //override for each type
-    def body  : Array[Byte] = Array()
-
-
-    val desc  : Option[AmqpDescriptor]=None
-
-    def bytes : Array[Byte] = 
-        if (desc.isDefined)
-            desc.get.bytes ++ Array[Byte](typ.toByte) ++ body
-        else
-            Array[Byte](typ.toByte) ++ body
+    def bytes : Seq[Byte]
+    def valueBytes : Seq[Byte]
+        
     
     /**
      * Every AmqpValue type will have an apply(key) and apply(index) method,
@@ -287,17 +274,19 @@ class AmqpValue
         try { s.trim.toLong }
         catch { case e:Exception => 0 }
     protected def toBytes(v: Short) =
-        Array[Byte]( ((v>>8)&0xff).toByte, (v&0xff).toByte)
+              Array( ((v>>8)&0xff).toByte, (v&0xff).toByte)
     protected def toBytes(v: Int) =
-        Array[Byte]( ((v>>24)&0xff).toByte, ((v>>16)&0xff).toByte,
+              Array( ((v>>24)&0xff).toByte, ((v>>16)&0xff).toByte,
                      ((v>> 8)&0xff).toByte, ((v    )&0xff).toByte)
     protected def toBytes(v: Long) =
-        Array[Byte]( ((v>>56)&0xff).toByte, ((v>>48)&0xff).toByte,
+              Array( ((v>>56)&0xff).toByte, ((v>>48)&0xff).toByte,
                      ((v>>40)&0xff).toByte, ((v>>32)&0xff).toByte,
                      ((v>>24)&0xff).toByte, ((v>>16)&0xff).toByte,
                      ((v>> 8)&0xff).toByte, ((v    )&0xff).toByte)
 
 }
+
+trait AmqpDescriptor extends AmqpValue
 
 /**
  * This is the optional descriptor that precedes a type constructor.
@@ -307,10 +296,16 @@ class AmqpValue
  * It is serialized as:
  *     0x00 <child_constructor> <child_body>  
  */ 
-case class AmqpDescriptor(value: AmqpValue) extends AmqpValue
+case class AmqpDesc(value: AmqpValue) extends AmqpDescriptor
 {
-    override def typ = 0x00
-    override def body = value.bytes
+    def bytes = List(0x0.toByte) ++ valueBytes
+    def valueBytes = value.bytes
+}
+
+case object AmqpNoDesc extends AmqpDescriptor
+{
+    def bytes = valueBytes
+    def valueBytes = List()
 }
 
 
@@ -319,22 +314,25 @@ case class AmqpDescriptor(value: AmqpValue) extends AmqpValue
 //########################################################################
 
 case class AmqpNull(
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ = 0x40
+    def bytes = desc.bytes ++ List(0x40.toByte)
+    def valueBytes = List()
 }
 case class AmqpTrue(
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ = 0x41
+    def bytes = desc.bytes ++ List(0x41.toByte)
+    def valueBytes = List()
 }
 case class AmqpFalse(
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ = 0x42
+    def bytes = desc.bytes ++ List(0x42.toByte)
+    def valueBytes = List()
 }
 
 
@@ -343,21 +341,19 @@ case class AmqpFalse(
 //########################################################################
 case class AmqpUByte(
     val value : Byte = 0x00.toByte,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x50
-    override def size  = 1
-    override def body = Array[Byte](value)
+    def bytes = desc.bytes ++ List(0x50.toByte) ++ valueBytes
+    def valueBytes = List(value)
 }
 case class AmqpByte(
     val value : Byte = 0x00.toByte,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x51
-    override def size  = 1
-    override def body = Array[Byte](value)
+    def bytes = desc.bytes ++ List(0x51.toByte) ++ valueBytes
+    def valueBytes = List(value)
 }
 
 //########################################################################
@@ -365,21 +361,19 @@ case class AmqpByte(
 //########################################################################
 case class AmqpUShort(
     val value: Short = 0,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x60
-    override def size  = 2
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x60.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 case class AmqpShort(
     val value: Short = 0,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x61
-    override def size  = 2
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x61.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 
 //########################################################################
@@ -388,30 +382,27 @@ case class AmqpShort(
 
 case class AmqpUInt(
     val value: Int = 0,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x70
-    override def size  = 4
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x70.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 case class AmqpInt(
     val value: Int = 0,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x71
-    override def size  = 4
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x71.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 case class AmqpFloat(
     val value: Float = 0.0f,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x72
-    override def size  = 4
-    override def body = toBytes(java.lang.Float.floatToIntBits(value))
+    def bytes = desc.bytes ++ List(0x72.toByte) ++ valueBytes
+    def valueBytes = toBytes(java.lang.Float.floatToIntBits(value))
 }
 
 
@@ -421,39 +412,35 @@ case class AmqpFloat(
 
 case class AmqpULong(
     val value: Long = 0L,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x80
-    override def size  = 8
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x80.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 case class AmqpLong(
     val value: Long = 0L,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x81
-    override def size  = 8
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x81.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 case class AmqpDouble(
     val value: Double = 0.0,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x82
-    override def size  = 8
-    override def body = toBytes(java.lang.Double.doubleToLongBits(value))
+    def bytes = desc.bytes ++ List(0x82.toByte) ++ valueBytes
+    def valueBytes = toBytes(java.lang.Double.doubleToLongBits(value))
 }
 case class AmqpTimestamp(
     val value: Long = 0L,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x83
-    override def size  = 8
-    override def body = toBytes(value)
+    def bytes = desc.bytes ++ List(0x83.toByte) ++ valueBytes
+    def valueBytes = toBytes(value)
 }
 
 
@@ -463,12 +450,11 @@ case class AmqpTimestamp(
 case class AmqpUuid(
     val hi: Long = 0L,
     val lo: Long = 0L,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = 0x98
-    override def size  = 16
-    override def body = toBytes(hi) ++ toBytes(lo)
+    def bytes = desc.bytes ++ List(0x98.toByte) ++ valueBytes
+    def valueBytes = toBytes(hi) ++ toBytes(lo)
 }
 
 
@@ -478,50 +464,50 @@ case class AmqpUuid(
 
 case class AmqpBinary(
     val value: Array[Byte] = Array(),
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = if (!wide && value.size < 256) 0xa0 else 0xb0
-    override def size  = bytes.size
-    override def body =
-        if (wide || value.size < 256)
-            Array[Byte](value.length.toByte) ++ value
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256)
+            desc.bytes ++ List(0xa0.toByte, valBytes.size.toByte) ++ valBytes
         else
-            toBytes(value.length.toByte) ++ value
-    override def widen = copy(wide=true)
+            desc.bytes ++ List(0xb0.toByte) ++ toBytes(valBytes.size) ++ valBytes         
+        }
+    def valueBytes = value
 }
 
 case class AmqpString(
     val value: String = "",
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = if (!wide && value.size < 256) 0xa1 else 0xb1
-    override def size  = bytes.size
-    override def body =
-        if (wide || value.size < 256)
-            Array[Byte](value.length.toByte) ++ value.getBytes
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256)
+            desc.bytes ++ List(0xa1.toByte, valBytes.size.toByte) ++ valBytes
         else
-            toBytes(value.length.toByte) ++ value.getBytes
-    override def widen = copy(wide=true)
+            desc.bytes ++ List(0xb1.toByte) ++ toBytes(valBytes.size) ++ valBytes            
+        }
+    def valueBytes = value.getBytes
 }
 
 case class AmqpSymbol(
     val value: String = "",
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor]=None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ   = if (!wide && value.size < 256) 0xa2 else 0xb2
-    override def size  = bytes.size
-    override def body =
-        if (wide || value.size < 256)
-            Array[Byte](value.length.toByte) ++ value.getBytes
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256)
+            desc.bytes ++ List(0xa2.toByte, valBytes.size.toByte) ++ valBytes
         else
-            toBytes(value.length.toByte) ++ value.getBytes
-    override def widen = copy(wide=true)
+            desc.bytes ++ List(0xb2.toByte) ++ toBytes(valBytes.size) ++ valBytes            
+        }
+    def valueBytes = value.getBytes
 }
 
 
@@ -548,32 +534,20 @@ case class AmqpSymbol(
  * classes has a widen() method to aid in making them all large.              
  */
 case class AmqpArray[T<:AmqpValue](
-    val value: Seq[T] = Seq(),
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor]=None
+    val value: Seq[T]=List(),
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ =
-        if (!wide && childBytes.size < 256 && value.size < 256) 0xe0 else 0xf0
-
-    override def size = 
-        if (isSmall)
-            2 + childBytes.size
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256 && value.size < 256)
+            desc.bytes ++ List(0xe0.toByte, valBytes.size.toByte, value.size.toByte) ++ valBytes
         else
-            5 + childBytes.size
-
-    override def body =
-        if (isSmall)
-            Array[Byte](size.toByte, value.size.toByte, value(0).typ.toByte) ++ childBytes
-        else
-            toBytes(size) ++ toBytes(value.size) ++ Array[Byte](value(0).typ.toByte) ++ childBytes
-
-    lazy val childBytes = value.map(_.body).flatten.toArray
+            desc.bytes ++ List(0xf0.toByte) ++ toBytes(valBytes.size) ++ toBytes(value.size) ++ valBytes            
+        }
+    def valueBytes = value.flatMap(_.valueBytes)
     
-    def isSmall = !wide && childBytes.size < 256 && value.size < 256
-    
-    override def widen = copy(wide=true)
-
     override def apply(index: Int) =
        try
             { value(index) }
@@ -611,29 +585,20 @@ case class AmqpArray[T<:AmqpValue](
  */
 case class AmqpList(
     val value: Seq[AmqpValue] = Seq(),
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor] = None
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ = if (isSmall) 0xc0 else 0xd0
-
-    override def size = 
-	    if (isSmall)
-		    1 + childBytes.size
-		else
-		    4 + childBytes.size
-    
-    override def body =
-        if (isSmall)
-            Array[Byte](size.toByte, value.size.toByte) ++ childBytes
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256 && value.size < 256)
+            desc.bytes ++ List(0xc0.toByte, valBytes.size.toByte, value.size.toByte) ++ valBytes
         else
-            toBytes(size) ++ toBytes(value.size) ++ childBytes
-
-    val isSmall = !wide && childBytes.size < 256 && value.size < 256
-
-    override def widen = copy(wide=true)
+            desc.bytes ++ List(0xd0.toByte) ++ toBytes(valBytes.size)  ++ toBytes(value.size) ++ valBytes            
+        }
+    //notice how this is different from AmqpArray
+    def valueBytes = value.flatMap(_.bytes)
     
-    lazy val childBytes = value.map(v=> v.bytes).flatten.toArray
     
     override def apply(indx: Int) =
        try
@@ -672,34 +637,26 @@ case class AmqpList(
  * as two.  So a "count8" map must have no more than 127 pairs.   
  */
 case class AmqpMap(
-    val value: Map[AmqpSymbol, AmqpValue] = Map(),
-    val wide: Boolean = false,
-    override val desc: Option[AmqpDescriptor] = None
+    val value: Map[String, AmqpValue] = Map(),
+    val desc: AmqpDescriptor = AmqpNoDesc
 ) extends AmqpValue
 {
-    override def typ = if (isSmall) 0xc1 else 0xd1
-
-    override def size =
-	    if (isSmall)
-		    1 + childBytes.size
-		else
-		    4 + childBytes.size
- 
-    override def body =
-        if (isSmall)
-            Array[Byte](childBytes.size.toByte, value.size.toByte) ++ childBytes
+    def bytes =
+        {
+        val valBytes = valueBytes
+        if (valBytes.size < 256 && value.size < 128)
+            desc.bytes ++ List(0xc1.toByte, valBytes.size.toByte, value.size.toByte) ++ valBytes
         else
-            toBytes(childBytes.size) ++ toBytes(value.size) ++ childBytes
-
-    val isSmall = !wide && childBytes.size < 256 && value.size < 128 //note, each pair counts as two here
-
-    override def widen = copy(wide=true)
-    
-    lazy val childBytes = value.toSeq.map(v=> v._1.bytes ++ v._2.bytes).flatten.toArray
+            desc.bytes ++ List(0xd1.toByte) ++ toBytes(valBytes.size) ++ toBytes(value.size) ++ valBytes            
+        }
+    def valueBytes = value.flatMap(v =>
+            {
+            (new AmqpSymbol(v._1)).bytes ++ v._2.bytes
+            }).toSeq
     
     
     override def apply(key: String) =
-        value.getOrElse(AmqpSymbol(key), new AmqpNull)
+        value.getOrElse(key, new AmqpNull)
 }
 
 
@@ -711,33 +668,30 @@ case class AmqpMap(
 
 object Encoder
 {
-    implicit def string2descriptor(name: String) : Option[AmqpDescriptor] =
-        if (name==null || name.length==0) None else Some(new AmqpDescriptor(new AmqpSymbol(name)))
+    implicit def string2descriptor(name: String) : AmqpDescriptor =
+        if (name==null || name.length==0) AmqpNoDesc else AmqpDesc(AmqpSymbol(name))
 
-    implicit def long2descriptor(code: Long) : Option[AmqpDescriptor] =
-        Some(new AmqpDescriptor(new AmqpULong(code)))
+    implicit def long2descriptor(code: Long) : AmqpDescriptor =
+        AmqpDesc(AmqpULong(code))
             
     def desc(name: String) =
-        new AmqpDescriptor(new AmqpSymbol(name))
+        AmqpDesc(AmqpSymbol(name))
             
     def desc(code: Long) =
-        new AmqpDescriptor(new AmqpULong(code))
+        AmqpDesc(AmqpULong(code))
             
-    def array[T<:AmqpValue](values: T*)(implicit desc: Option[AmqpDescriptor]=None) =
+    def array[T<:AmqpValue](values: T*)(implicit desc: AmqpDescriptor=AmqpNoDesc) =
         {
-        val arr = if (values.forall(_.size < 256)) values else values.map(_.widen)
-        new AmqpArray(arr.toSeq, false, desc)
+        AmqpArray(values.toSeq, desc)
         }
     
-    def stringArray(values: String*)(implicit desc: Option[AmqpDescriptor]=None) : AmqpArray[AmqpString] =
+    def stringArray(values: String*)(implicit desc: AmqpDescriptor=AmqpNoDesc) : AmqpArray[AmqpString] =
         {
-        val raw = values.map(s=> new AmqpString(s))
-        val arr = if (raw.forall(_.size < 256)) raw else raw.map(_.widen)
-        new AmqpArray(arr.toSeq, false, desc)
+        AmqpArray(values.map(v=> AmqpString(v))toSeq, desc)
         }
     
-    def intArray(values: Int*)(implicit desc: Option[AmqpDescriptor]=None) : AmqpArray[AmqpInt] =
-        new AmqpArray(values.map(i=> new AmqpInt(i)).toSeq, false, desc)
+    def intArray(values: Int*)(implicit desc: AmqpDescriptor=AmqpNoDesc) : AmqpArray[AmqpInt] =
+        AmqpArray(values.map(v=>AmqpInt(v)).toSeq, desc)
     
     def list(values: AmqpValue*) = AmqpList(values)
     
@@ -807,8 +761,10 @@ class Decoder(parsebuf: Array[Byte]) extends pedro.util.Logged
             }
         }
     
+    
+    private val nullRet = (-1, new AmqpNull())
 
-    def parse(p0: Int, desc: Option[AmqpDescriptor] = None, arrayCode: Int = 0) : (Int,AmqpValue) =
+    def parse(p0: Int, desc: AmqpDescriptor = AmqpNoDesc, arrayCode: Int = 0) : (Int,AmqpValue) =
         {
         var p = p0
         val ch = 
@@ -817,7 +773,7 @@ class Decoder(parsebuf: Array[Byte]) extends pedro.util.Logged
             else 
                 { val c = get(p) ; p += 1 ; c }
         if (ch < 0)
-            (-1, new AmqpNull)
+            nullRet
         else
             {
             ch match
@@ -825,288 +781,290 @@ class Decoder(parsebuf: Array[Byte]) extends pedro.util.Logged
                 case 0x00 => //descriptor
                     val v = parse(p+1)
                     if (v._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        parse(v._1, Some(new AmqpDescriptor(v._2)))
+                        parse(v._1, AmqpDesc(v._2))
                 case 0x40 =>
-                    (p, new AmqpNull(desc))
+                    (p, AmqpNull(desc))
                 case 0x41 =>
-                    (p, new AmqpTrue(desc))
+                    (p, AmqpTrue(desc))
                 case 0x42 =>
-                    (p, new AmqpFalse(desc))
+                    (p, AmqpFalse(desc))
                 case 0x50 =>
-                    (p+1, new AmqpUByte(get(p).toByte, desc))
+                    (p+1, AmqpUByte(get(p).toByte, desc))
                 case 0x51 =>
-                    (p+1, new AmqpByte(get(p).toByte, desc))
+                    (p+1, AmqpByte(get(p).toByte, desc))
                 case 0x60 => 
                     val r = getShort(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpUShort(r._2, desc))
+                        (r._1, AmqpUShort(r._2, desc))
                 case 0x61 =>
                     val r = getShort(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpShort(r._2, desc))
+                        (r._1, AmqpShort(r._2, desc))
                 case 0x70 => 
                     val r = getInt(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpUInt(r._2, desc))
+                        (r._1, AmqpUInt(r._2, desc))
                 case 0x71 =>
                     val r = getInt(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpInt(r._2, desc))
+                        (r._1, AmqpInt(r._2, desc))
                 case 0x72 =>
                     val r = getInt(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpFloat(java.lang.Float.intBitsToFloat(r._2), desc))
+                        (r._1, AmqpFloat(java.lang.Float.intBitsToFloat(r._2), desc))
                 case 0x80 => 
                     val r = getLong(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpULong(r._2, desc))
+                        (r._1, AmqpULong(r._2, desc))
                 case 0x81 =>
                     val r = getLong(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpLong(r._2, desc))
+                        (r._1, AmqpLong(r._2, desc))
                 case 0x82 =>
                     val r = getLong(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpDouble(java.lang.Double.longBitsToDouble(r._2), desc))
+                        (r._1, AmqpDouble(java.lang.Double.longBitsToDouble(r._2), desc))
                 case 0x83 =>
                     val r = getLong(p)
                     if (r._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (r._1, new AmqpTimestamp(r._2, desc))
+                        (r._1, AmqpTimestamp(r._2, desc))
                 case 0x98 =>
                     val hi = getLong(p)
                     val lo = getLong(hi._1)
                     if (lo._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
-                        (lo._1, new AmqpUuid(hi._2, lo._2, desc))
+                        (lo._1, AmqpUuid(hi._2, lo._2, desc))
                 case 0xa0 =>
                     val size = get(p)
                     if (size < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         val v = Array.tabulate[Byte](size)(i=>get(p+i).toByte)
-                        (p + size, new AmqpBinary(v))
+                        (p + size, AmqpBinary(v))
                         }
                 case 0xa1 =>
                     val size = get(p)
                     if (size < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p += 1
                         val v = Array.tabulate[Byte](size)(i=>get(p+i).toByte)
-                        (p + size, new AmqpString(new String(v)))
+                        (p + size, AmqpString(new String(v)))
                         }
                 case 0xa2 =>
                     val size = get(p)
                     if (size < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p += 1
                         val v = Array.tabulate[Byte](size)(i=>get(p+i).toByte)
-                        (p + size, new AmqpString(new String(v)))
+                        (p + size, AmqpString(new String(v)))
                         }
                 case 0xa3 =>
                     val size = get(p)
                     if (size < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p += 1
                         val v = Array.tabulate[Byte](size)(i=>get(p+i).toByte)
-                        (p + size, new AmqpSymbol(new String(v)))
+                        (p + size, AmqpSymbol(new String(v)))
                         }
                 case 0xb0 =>
                     val size = getInt(p)
                     if (size._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = size._1
                         val v = Array.tabulate[Byte](p)(i=>get(p+i).toByte)
-                        (p + size._2, new AmqpBinary(v))
+                        (p + size._2, AmqpBinary(v))
                         }
                 case 0xb1 =>
                     val size = getInt(p)
                     if (size._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = size._1
                         val v = Array.tabulate[Byte](p)(i=>get(p+i).toByte)
-                        (p + size._2, new AmqpString(new String(v)))
+                        (p + size._2, AmqpString(new String(v)))
                         }
                 case 0xb2 =>
                     val size = getInt(p)
                     if (size._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = size._1
                         val v = Array.tabulate[Byte](p)(i=>get(p+i).toByte)
-                        (p + size._2, new AmqpString(new String(v)))
+                        (p + size._2, AmqpString(new String(v)))
                         }
                 case 0xb3 =>
                     val size = getInt(p)
                     if (size._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = size._1
                         val v = Array.tabulate[Byte](p)(i=>get(p+i).toByte)
-                        (p + size._2, new AmqpSymbol(new String(v)))
+                        (p + size._2, AmqpSymbol(new String(v)))
                         }
                 case 0xc0 =>
                     val size  = get(p) ; p += 1
                     val count = get(p) ; p += 1
                     if (count < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         val buf = scala.collection.mutable.ListBuffer[AmqpValue]()
                         for (i <- 0 until count)
                             {
-                            val r = parse(p, None)
+                            val r = parse(p)
                             if (r._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = r._1
                             buf += r._2
                             }
-                        (p, new AmqpArray(buf.toSeq, false, desc))
+                        (p, AmqpArray(buf.toSeq, desc))
                         }
                 case 0xc1 =>
                     val size  = get(p) ; p += 1
                     val count = get(p) ; p += 1
                     if (count < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         val buf = scala.collection.mutable.ListBuffer[(AmqpSymbol, AmqpValue)]()
                         for (i <- 0 until count/2)
                             {
-                            val key   = parse(p, None)
-                            val value = parse(key._1, None)
+                            val key   = parse(p)
+                            val value = parse(key._1)
                             if (value._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = value._1
                             key._2 match
                                 {
                                 case k:AmqpSymbol => buf += ((k, value._2))
                                 case _ => error("expected symbol for map key")
-                                    return (-1, new AmqpNull)
+                                    return nullRet
                                 }
                             
                             }
-                        (p, new AmqpMap(buf.toMap, false, desc))
+                        val buf2 = buf.map(v=> (v._1.value, v._2))
+                        (p, new AmqpMap(buf2.toMap, desc))
                         }
                 case 0xd0 =>
                     val size  = getInt(p)
                     val count = getInt(size._1)
                     if (count._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = count._1
                         val buf = scala.collection.mutable.ListBuffer[AmqpValue]()
                         for (i <- 0 until count._2)
                             {
-                            val r = parse(p, None)
+                            val r = parse(p)
                             if (r._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = r._1
                             buf += r._2
                             }
-                        (p, new AmqpArray(buf.toSeq, false, desc))
+                        (p, AmqpArray(buf.toSeq, desc))
                         }
                 case 0xd1 =>
                     val size  = getInt(p)
                     val count = getInt(size._1)
                     if (count._1 < 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         p = count._1
                         val buf = scala.collection.mutable.ListBuffer[(AmqpSymbol, AmqpValue)]()
                         for (i <- 0 until count._2/2)
                             {
-                            val key   = parse(p, None)
-                            val value = parse(key._1, None)
+                            val key   = parse(p)
+                            val value = parse(key._1)
                             if (value._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = value._1
                             key._2 match
                                 {
                                 case k:AmqpSymbol => buf += ((k, value._2))
                                 case _ => error("expected symbol for map key")
-                                    return (-1, new AmqpNull)
+                                    return nullRet
                                 }
                             
                             }
-                        (p, new AmqpMap(buf.toMap, false, desc))
+                        val buf2 = buf.map(v=> (v._1.value, v._2))
+                        (p, AmqpMap(buf2.toMap, desc))
                         }
                 case 0xe0 =>
                     val size  = get(p) ; p += 1
                     val count = get(p) ; p += 1
                     val typ   = get(p) ; p += 1
                     if (size < 0 || count < 0 || typ< 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         val buf = scala.collection.mutable.ListBuffer[AmqpValue]()
                         for (i <- 0 until count)
                             {
-                            val r = parse(p, None, typ)
+                            val r = parse(p, AmqpNoDesc, typ)
                             if (r._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = r._1
                             buf += r._2
                             }
-                        (p, new AmqpArray(buf.toSeq, false, desc))
+                        (p, new AmqpArray(buf.toSeq, desc))
                         }
                 case 0xf0 =>
                     val size  = getInt(p) ; p = size._1
                     val count = getInt(p) ; p = count._1
                     val typ   = get(p) ; p += 1
                     if (size._1 < 0 || count._1 < 0 || typ< 0)
-                        (-1, new AmqpNull)
+                        nullRet
                     else
                         {
                         val buf = scala.collection.mutable.ListBuffer[AmqpValue]()
                         for (i <- 0 until count._2)
                             {
-                            val r = parse(p, None, typ)
+                            val r = parse(p, AmqpNoDesc, typ)
                             if (r._1 < 0)
-                                return (-1, new AmqpNull)
+                                return nullRet
                             p = r._1
                             buf += r._2
                             }
-                        (p, new AmqpArray(buf.toSeq, false, desc))
+                        (p, new AmqpArray(buf.toSeq, desc))
                         }
                 case _ =>
                     error("parse: case not handled :" + ch)
-                    (-1, new AmqpNull)
+                    nullRet
                 }
             }
         }
