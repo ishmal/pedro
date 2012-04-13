@@ -1,10 +1,10 @@
 name := "Pedro"
 
-version := "0.10.2"
+version := "0.10.3"
 
 organization := "org.pedro"
 
-scalaVersion := "2.10.0-M1"
+scalaVersion := "2.9.2"
 
 libraryDependencies ++= Seq(
   "org.scalatest"        % "scalatest_2.9.1"  % "1.6.1"     % "compile,test",
