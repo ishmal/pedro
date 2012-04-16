@@ -7,6 +7,11 @@ also reduction of dependencies.
 
 ## Some of the modules you will find in this library
 
+### pedro.net.servlet.RestServlet
+This servlet makes it extremely easy to set up a REST API without needing any
+big clumsy framework.  Simply define your resources, the actions you wish to
+perform on them, and hook up to your business objest.  It couldn't be easier.
+
 ### pedro.data.Xml
 scala.xml's ability to embed literal xml in Scala code it admirable. But for a lot
 or users, it is very difficult to generate XML dynamically.  This simple library
