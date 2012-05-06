@@ -2,7 +2,7 @@
  *  This is a simple implementation of OAuth for Scala.
  *
  *  Author: Bob Jamison
- *  Copyright, 2010 
+ *  Copyright, 2012
  *    
  *  
  *  This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,7 @@
 
 package pedro.net.oauth
 
+import java.io.InputStream
 import pedro.data.{Data}
 import pedro.net.servlet.{Servlet,Request,Response}
 
@@ -37,6 +38,29 @@ case class App(
 ) extends Data
 {}
 
+trait OAuthAccessor
+{
+    
+}
+
+trait OAuthValidator 
+{
+
+    /**
+     * Check that the given message from the given accessor is valid.
+     * 
+     * @throws IOException
+     *             the message couldn't be read.
+     * @throws URISyntaxException
+     *             the message URL is invalid.
+     */
+    def validateMessage(message: OAuthMessage,
+            accessor: OAuthAccessor) : Boolean =
+        {
+        true
+        }
+
+}
 
 
 class RegistryServlet extends Servlet
