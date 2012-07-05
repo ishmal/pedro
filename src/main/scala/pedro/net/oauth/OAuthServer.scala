@@ -38,10 +38,6 @@ case class App(
 ) extends Data
 {}
 
-trait OAuthAccessor
-{
-    
-}
 
 trait OAuthValidator 
 {

@@ -66,9 +66,25 @@ object OAuth
     val OAUTH_PARAMETERS_ABSENT     = "oauth_parameters_absent"
     val OAUTH_PARAMETERS_REJECTED   = "oauth_parameters_rejected"
     val OAUTH_PROBLEM_ADVICE        = "oauth_problem_advice"
+    
 }
 
 
+case class OAuthAccessor(name: String)
+{
+    
+}
+
+class OAuthConsumer(val callbackURL: String, val consumerKey: String,
+            val consumerSecret: String, val serviceProvider: OAuthServiceProvider)
+{
+    
+}
+
+class OAuthServiceProvider
+{
+    
+}
 
 class OAuthMessage(val method: String, 
             val url: String,
@@ -76,4 +92,12 @@ class OAuthMessage(val method: String,
             val bodyAsStream: Option[InputStream] = None)
 {
     
+}
+
+object OAuthMessage
+{
+    def validate(message: OAuthMessage) : Boolean =
+        {
+        true
+        }
 }
