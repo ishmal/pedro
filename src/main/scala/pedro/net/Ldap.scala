@@ -31,11 +31,24 @@ import javax.naming.directory.{BasicAttribute, BasicAttributes, DirContext}
 import javax.naming.directory.{InitialDirContext, SearchControls, SearchResult}
 
 
+/**
+ * A simple wrapper of the Java runtime's LDAP client abilities.
+ *
+ * @param host the LDAP server address
+ * @param port the port on the LDAP server
+ * @param baseDn the distinguished name of the database to query
+ * @param orgUnit which user database within the realm defined by the baseDn
+ * @param username the user to authenticate or who is performing a search
+ * @param password the credential string of the user
+ */
 class Ldap(host: String, port: Int, baseDn: String,
-    orgUnit: String, username: String, password: String)
+    orgUnit: String, username: String, password: String) extends pedro.util.Logged
 {
     val url = "ldap://" + host + ":" + port + "/" + baseDn
     
+    /**
+     * Connect to the LDAP server.  Common code called from other methods.
+     */
     private def connect : Option[DirContext] =
         {
         val env = new java.util.Hashtable[String, String]
@@ -53,7 +66,7 @@ class Ldap(host: String, port: Int, baseDn: String,
         catch
             {
             case e: Exception =>
-                println("ldap connect error:" + e)
+                error("connect: " + e)
                 None
             }
         }
@@ -96,7 +109,7 @@ class Ldap(host: String, port: Int, baseDn: String,
         catch
             {
             case e: Exception =>
-                println("ldap error:" + e)
+                error("search: " + e)
             }
         finally
             {
