@@ -2,7 +2,7 @@
  *  This is a simple implementation of OAuth for Scala.
  *
  *  Author: Bob Jamison
- *  Copyright, 2011
+ *  Copyright, 2012
  *    
  *  
  *  This program is free software: you can redistribute it and/or modify
@@ -24,12 +24,11 @@ package pedro.net.oauth
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.{FeatureSpec,GivenWhenThen}
-
-
+import org.scalatest.{FeatureSpec}
+import org.scalatest.matchers.{ShouldMatchers}
 
 @RunWith(classOf[JUnitRunner])
-class OAuth1Test extends FeatureSpec with GivenWhenThen
+class OAuth1Test extends FeatureSpec with ShouldMatchers
 {
     val scalaNode = OAuth1Account(
         name              = "ScalaNode", 
@@ -66,7 +65,7 @@ class OAuth1Test extends FeatureSpec with GivenWhenThen
 
 
 @RunWith(classOf[JUnitRunner])
-class OAuth2Test extends FeatureSpec with GivenWhenThen
+class OAuth2Test extends FeatureSpec with ShouldMatchers
 {
     val scalaNode = OAuth2Account(
         name           = "ScalaNode", 

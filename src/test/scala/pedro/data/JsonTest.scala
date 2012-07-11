@@ -1,18 +1,39 @@
-
-
+/**
+ * Test JSON capabilities
+ *
+ * Authors:
+ *   Bob Jamison
+ *
+ * Copyright (C) 2012 Bob Jamison
+ * 
+ *  This file is part of the Pedro library.
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 3 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 package pedro.data
 
-import java.util.Date
-
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.{FeatureSpec,GivenWhenThen}
+import org.scalatest.{FeatureSpec}
+import org.scalatest.matchers.{ShouldMatchers}
 
-
+import java.util.Date
 
 @RunWith(classOf[JUnitRunner])
-class JsonTest extends FeatureSpec with GivenWhenThen
+class JsonTest extends FeatureSpec with ShouldMatchers
 {
     val simpleStr = 
 """
@@ -69,45 +90,32 @@ class JsonTest extends FeatureSpec with GivenWhenThen
         {
         scenario("JSON should be able to parse a simple Json object")
             {
-            given("A Json string with various types")
             val str = simpleStr
-            when("The parser is called")
             val res = JsonParser.parse(str)
-            then("the parse should have been successful")
-            assert(res.isDefined)
+            res.isDefined should be === true
             println("### plain :\n" + res.get.toString)
             println("### pretty:\n" + res.get.pretty)
             }
 
         scenario("JSON should be able to parse a series of Json objects")
             {
-            given("A Json string with multiple objects")
             val str = multiStr
-            when("The parser is called")
             val res = JsonPush.parse(str)(js =>
 	            {
 	            println("## js: " + js.pretty)
 	            })
-            then("the parse should have been successful")
             assert(res)
             }
 
         scenario("JSON should be able to handle a series of escaped values")
             {
-            given("A Json string with various escapes, one of them invalid")
             val str = """["AB\\CD","\x41BCD",324,23,true,"AB\u0043D"]"""
-            when("The parser is called")
 	        val res = JsonParser.parse(str)
-            then("the parse should have failed")
             println("res:"+res)
 	        assert(res.isEmpty)
 
-            given("A Json string with various escapes, all ok")
             val str2 = """["AB\\CD",324,23,true,"AB\u0043D"]"""
-            when("The parser is called")
-            when("The parser is called")
 	        val res2 = JsonParser.parse(str2)
-            then("the parse should have succeeded")
             println("res2:"+res2)
 	        assert(res2.isDefined)
             }
@@ -138,12 +146,9 @@ class JsonTest extends FeatureSpec with GivenWhenThen
         {
         scenario("JSON should convert to and from Products correctly")
             {
-            given("A Json object with various typed members")
             val date = new Date();
             val item = Item("hello", true, 1, 2L, 3.4, date)
-            when("converted to Json")
 	        val js = Json.toJson(item)
-            then("conversion to a Json object should be successful")
             println("js:"+js.toString)
 	        expect("hello")(js("sval").s)
 	        expect(true)(js("bval").b)
@@ -152,11 +157,8 @@ class JsonTest extends FeatureSpec with GivenWhenThen
 	        expect(3.4)(js("dval").d)
 	        expect(date)(Json.parseDate(js("dateval")))
 	        
-	        when("we attempt to convert back to product")
 	        val res = Json.toProduct(js)
-	        then("conversion should be successful")
 	        assert(res.isDefined)
-	        then("Product should be the correct type")
 	        val isCorrectType = res.get match
 	            {
                 case v:Item => true

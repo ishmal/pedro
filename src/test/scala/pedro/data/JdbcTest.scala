@@ -1,5 +1,5 @@
 /**
- * Test XSLT capabilities
+ * Simple JDBC wrapper utility
  *
  * Authors:
  *   Bob Jamison
@@ -30,30 +30,34 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec}
 import org.scalatest.matchers.{ShouldMatchers}
 
-import pedro.net.servlet._
-
-
 @RunWith(classOf[JUnitRunner])
-class XsltTest extends FeatureSpec with ShouldMatchers
+class JdbcTest extends FeatureSpec with ShouldMatchers
 {
-    feature("The XsltFilter must be able to transform xml")
-        {
-        scenario("The filter converts a Docbook doc to html")
-            {
-            val filter = new XsltFilter
-            val xslName = "src/test/resources/doc2html.xsl"
-            filter.templates = filter.loadFile(xslName).flatMap(filter.loadTemplate)
-            assert(filter.templates.isDefined)
-            val docName = "src/test/resources/crystalegg.docbook"
-            val inbuf = scala.io.Source.fromFile(docName)("UTF-8").mkString
-            val result = filter.transform(inbuf.getBytes)
-            assert(result.isDefined)
-            println(new String(result.get))
-            }
-
+    val jdbcDriver = "com.mysql.jdbc.Driver"
+    val jdbcUrl    = "jdbc:mysql://someserver/database"
+    val user       = "user"
+    val pass       = "pass"
+    val sql        = "select * from table"
     
+    def doTest : Boolean =
+        {
+        val ret = Jdbc(jdbcDriver, jdbcUrl, user, pass)
+        if (!ret.isDefined)
+            {
+            println("Connection failed")
+            return false
+            }
+        val jdbc = ret.get
+        val result = jdbc.query(sql)
+        for (row <- result)
+            {
+            println(row)
+            // println(row("column_name"))
+            // println(row.column_name) //see Dynamic above
+            }
+        jdbc.close
+        true
         }
 
 }
-
 
