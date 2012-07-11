@@ -118,12 +118,12 @@ class Ldap(host: String, port: Int, baseDn: String,
 
 object Ldap
 {
-    val host     =  "cougarnet.uh.edu"
+    val host     =  "ldap.example.com"
     val port     =  389 
-    val baseDn   = "dc=cougarnet,dc=uh,dc=edu"
-    val orgUnit  = "Master users"
-    val username = "rwjamiso"
-    val password = "Flamingo1"
+    val baseDn   = "dc=example,dc=com"
+    val orgUnit  = "User"
+    val username = "joeuser"
+    val password = "joepass"
     
     def test1 =
         {
