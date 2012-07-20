@@ -88,8 +88,9 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
         xs.toSeq
         }
 
-    def insert(table: String, values: Map[String, Any], where: String) : Boolean =
+    def insert(table: String, values: Map[String, Any], where: String) : Int =
         {
+        var stmt : Option[java.sql.PreparedStatement] = None
         try
             {
             val buf = new StringBuilder
@@ -100,27 +101,29 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 buf.append(" where ")
                 buf.append(where)
                 }
-            val stmt = conn.prepareStatement(buf.toString)
+            stmt = Some(conn.prepareStatement(buf.toString))
             var i = 1
             for (v <- values)
                 {
-                stmt.setObject(i, v._2)
+                stmt.get.setObject(i, v._2)
                 i += 1
                 }
-            val result = stmt.executeUpdate
-            stmt.close
-            true
+            val result = stmt.get.executeUpdate
+            stmt.get.close
+            result
             }
         catch
             {
             case e: Exception =>
                 error("insert: " + e)
-                false
+                stmt.foreach(_.close)
+                -1
             }
         }
          
     def update(table: String, values: Map[String, Any], where: String) : Boolean =
         {
+        var stmt : Option[java.sql.PreparedStatement] = None
         try
             {
             val buf = new StringBuilder
@@ -131,21 +134,22 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 buf.append(" where ")
                 buf.append(where)
                 }
-            val stmt = conn.prepareStatement(buf.toString)
+            stmt = Some(conn.prepareStatement(buf.toString))
             var i = 1
             for (v <- values)
                 {
-                stmt.setObject(i, v._2)
+                stmt.get.setObject(i, v._2)
                 i += 1
                 }
-            val result = stmt.executeUpdate
-            stmt.close
+            val result = stmt.get.executeUpdate
+            stmt.get.close
             true
             }
         catch
             {
             case e: Exception =>
                 error("update: " + e)
+                stmt.foreach(_.close)
                 false
             }
         }
