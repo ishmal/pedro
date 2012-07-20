@@ -46,9 +46,9 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
 
     def exec(sql: String) : Boolean =
         {
+        val stmt = conn.createStatement
         try
             {
-            val stmt = conn.createStatement
             val result = stmt.execute(sql)
             stmt.close
             result
@@ -57,6 +57,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             {
             case e: Exception =>
                 error("exec: " + e)
+                stmt.close
                 false
             }
         }
@@ -64,9 +65,9 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
     def query(sql: String) : Seq[Result] =
         {
         val xs = scala.collection.mutable.ListBuffer[Result]()
+        val stmt = conn.createStatement
         try
             {
-            val stmt = conn.createStatement
             val result = stmt.executeQuery(sql)
             val meta = result.getMetaData
             val nrColumns = meta.getColumnCount
@@ -83,6 +84,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             case e: Exception =>
                 error("query: " + e)
             }
+        stmt.close
         xs.toSeq
         }
 
@@ -150,6 +152,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
          
     def delete(table: String, where: String) : Boolean =
         {
+        val stmt = conn.createStatement
         try
             {
             val buf = new StringBuilder
@@ -160,7 +163,6 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 buf.append(where)
                 }
             val sql = buf.toString
-            val stmt = conn.createStatement
             val result = stmt.execute(sql)
             stmt.close
             result
@@ -169,6 +171,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             {
             case e: Exception =>
                 error("delete: " + e)
+                stmt.close
                 false
             }
         }
