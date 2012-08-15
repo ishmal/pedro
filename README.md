@@ -43,4 +43,6 @@ example of using as a bot is provided.
 This provides a super-simple SOAP client that wraps up am XML SOAP request, POSTs
 it to the target server, and returns the result.
 
-
+### pedro.net.NtpClient
+Again, small and simple is the rule.   How simple? 
+val response = (new NtpClient("tick.usno.navy.mil")).ping

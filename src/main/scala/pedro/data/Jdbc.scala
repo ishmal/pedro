@@ -32,10 +32,22 @@ package pedro.data
  */
 class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
 {
+    var lastError = ""
+    
+    override def error(str: String) =
+        {
+        super.error(str)
+        lastError = str
+        }
         
     /**
      * Use scalac 2.9.2's -Xexperimental flag if you want to refer
      * to the columns as result.column_name
+     * 
+     * result("field") will return the value with that column name.  If
+     * the column does not exist, return None.
+     * 
+     * Note: The default None of the Map is created during the query                         
      */
     class Result(override val self: Map[String, Any])
            extends scala.collection.MapProxy[String, Any] with Dynamic
@@ -62,12 +74,33 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             }
         }
 
-    def query(sql: String) : Seq[Result] =
+    /**
+     * Query a table with the given SQL string.  
+     * 
+     * @param sql the SQL string to execute.          
+     * @return Some(Seq[Result]) if successful, None on failure
+     * 
+     * Typical usage:
+     *     val res = jdbc.query("select * from table_name where city='chicago'")
+     *     if (res.isDefined)
+     *         {
+     *         for (row <- res.get)
+     *              {
+     *              println("last_name" + row("last_name"))  
+     *              //  or..    row.last_name    ..if you use Dynamic                 
+     *              }                         
+     *         }
+     *      else
+     *         {
+     *         println("there was a problem: " + jdbc.lastError)    
+     *         }               
+     */           
+    def query(sql: String) : Option[Seq[Result]] =
         {
-        val xs = scala.collection.mutable.ListBuffer[Result]()
         val stmt = conn.createStatement
         try
             {
+            val xs = scala.collection.mutable.ListBuffer[Result]()
             val result = stmt.executeQuery(sql)
             val meta = result.getMetaData
             val nrColumns = meta.getColumnCount
@@ -78,17 +111,27 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 xs += new Result(row.toMap.withDefaultValue(None))
                 }
             stmt.close
+            Some(xs.toSeq)
             }
         catch
             {
             case e: Exception =>
                 error("query: " + e)
+                stmt.close
+                None
             }
-        stmt.close
-        xs.toSeq
         }
 
-    def insert(table: String, values: Map[String, Any], where: String) : Int =
+
+    /**
+     * Inserts a new row into a table
+     *      
+     * @param table the name of the table
+     * @param values a Map of column name -> value for the columns that
+     *     will be inserted
+     * @return true if successful, else false
+     */                          
+    def insert(table: String, values: Map[String, Any]) : Boolean =
         {
         var stmt : Option[java.sql.PreparedStatement] = None
         try
@@ -96,11 +139,6 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             val buf = new StringBuilder
             buf.append("insert into ").append(table).append(" set ")
             buf.append(values.map(_._1 + "=?").mkString(","))
-            if (where.size > 0)
-                {
-                buf.append(" where ")
-                buf.append(where)
-                }
             stmt = Some(conn.prepareStatement(buf.toString))
             var i = 1
             for (v <- values)
@@ -108,20 +146,30 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 stmt.get.setObject(i, v._2)
                 i += 1
                 }
-            val result = stmt.get.executeUpdate
+            stmt.get.executeUpdate
             stmt.get.close
-            result
+            true
             }
         catch
             {
             case e: Exception =>
                 error("insert: " + e)
                 stmt.foreach(_.close)
-                -1
+                false
             }
         }
          
-    def update(table: String, values: Map[String, Any], where: String) : Boolean =
+    /**
+     * Updates one or more rows in a table
+     *      
+     * @param table the name of the table
+     * @param values a Map of column name -> value for the columns that
+     *     will be inserted
+     * @param where.  The SQL where clause that selects which
+     *     rows to update.  Can be "" to update all records.
+     * @return >= 0 for the number of rows updated if successful.  -1 on error.
+     */                          
+    def update(table: String, values: Map[String, Any], where: String) : Int =
         {
         var stmt : Option[java.sql.PreparedStatement] = None
         try
@@ -143,17 +191,24 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
                 }
             val result = stmt.get.executeUpdate
             stmt.get.close
-            true
+            result
             }
         catch
             {
             case e: Exception =>
                 error("update: " + e)
                 stmt.foreach(_.close)
-                false
+                -1
             }
         }
          
+    /**
+     * Delete records from a table
+     * @param table the name of the table
+     * @param where.  The SQL where clause that selects which
+     *     rows to delete.  Can be "" to delete all records.
+     * @return true on success, else false
+     */                        
     def delete(table: String, where: String) : Boolean =
         {
         val stmt = conn.createStatement
@@ -180,25 +235,56 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             }
         }
 
-    def close =
+    /**
+     * Closes this JDBC connection.  Closing an already-closed
+     * connection should have no effect.
+     *      
+     * @return true on success, else false     
+     */              
+    def close : Boolean =
         {
         try
             {
             conn.close
+            true
             }
         catch
             {
             case e: Exception =>
                 error("close: " + e)
+                false
             }
         }
 }
 
 
 
-
+/**
+ * Jdbc companion object & utility
+ */ 
 object Jdbc extends pedro.util.Logged
 {
+    /**
+     * Simple Jdbc connection constructor.
+     * 
+     * Typical usage:
+     *     val jdbcDriver = "com.mysql.jdbc.Driver"
+     *     val jdbcUrl    = "jdbc:mysql://someserver/database"
+     *     val user       = "user"
+     *     val pass       = "pass"
+     *     val res = Jdbc(jdbcDriver, jdbcUrl, user, pass)
+     *     
+     *     if (res.isEmpty)
+     *         {
+     *         //report an error      
+     *         }                
+     *     else
+     *         {
+     *         jdbc = res.get
+     *         // do your sql stuff          
+     *         jdbc.close
+     *         }                        
+     */         
     def apply(jdbcDriver: String, jdbcUrl: String, user: String, pass: String) : Option[Jdbc] =
         {
         try
