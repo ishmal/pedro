@@ -77,7 +77,7 @@ trait JsonValue
      */  
     def pretty(indent: Int) : String = 
         {
-        (" " * indent) + toString
+        toString
         }
 
     /**
@@ -272,17 +272,15 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
 
     override def pretty(indent: Int) : String =
         {
+        val sorted = value.toList.sortWith((a,b) => a._1<b._1)
+        val maxkey = sorted.foldLeft(0)(_ max _._1.length)
         val buf = new StringBuilder
         val startln = "\n" + (" "*indent)
-        var comma = ""
-        buf.append(startln).append("{")
-        value.toList.sortWith((a,b) => a._1<b._1).foreach(e =>
-            {
-            buf.append(comma).append(startln).append(jsonStr(e._1)).
-                append(" : ").append(e._2.pretty(indent+4))
-            comma = ","
-            })
-        buf.append(startln).append("}")
+        val openBrace  = startln + "{"
+        val closeBrace = startln + "}"
+        val pretties = sorted.map(a=> startln + jsonStr(a._1) +
+               (" "*(maxkey-a._1.length)) + " : " + a._2.pretty(indent+4))
+        buf.append(pretties.mkString(openBrace, ",", closeBrace))
         buf.toString
         }
     
@@ -312,14 +310,10 @@ case class JsonArray(value: Seq[JsonValue]) extends JsonValue
         {
         val buf = new StringBuilder
         val startln = "\n" + (" "*indent)
-        var comma = ""
-        buf.append(startln).append('[')
-        value.foreach(e =>
-            {
-            buf.append(comma).append(startln).append(e.pretty(indent+4))
-            comma = ","
-            })
-        buf.append(startln).append(']')
+        val openBracket  = startln + "["
+        val closeBracket = startln + "]"
+        val pretties = value.map(e=> startln + e.pretty(indent+4))
+        buf.append(pretties.mkString(openBracket, ",", closeBracket))
         buf.toString
         }
 
