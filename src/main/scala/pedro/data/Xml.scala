@@ -204,15 +204,16 @@ class Element(
 
     def toXml : String =
         {
-        def xmlStr(ins: String, buf:StringBuilder)  =
+        def xmlStr(ins: String)  =
             {
+            val buf = new StringBuilder
             for (ch <- ins)
                 {
-                if (ch == '"')                 buf.append("&quot;")
-                else if (ch == '\'')           buf.append("&apos;")
-                else if (ch == '&')            buf.append("&amp;")
-                else if (ch == '<')            buf.append("&lt;")
-                else if (ch == '>')            buf.append("&gt;")
+                if (ch == '"')       buf.append("&quot;")
+                else if (ch == '\'') buf.append("&apos;")
+                else if (ch == '&')  buf.append("&amp;")
+                else if (ch == '<')  buf.append("&lt;")
+                else if (ch == '>')  buf.append("&gt;")
                 else if ((ch > 32 && ch < 127) || ch.isWhitespace) buf.append(ch)
                 else if (ch < 128)  //catch two-digit escapes
                      buf.append("&#x").
@@ -221,6 +222,7 @@ class Element(
                      append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
                      append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
                 }
+            buf.toString
             }
 
         def elemOut(elem: Element, indent: Int, buf: StringBuilder) : Unit =
@@ -229,16 +231,14 @@ class Element(
             buf.append(sp).append("<").append(elem.name)
             elem.attributes.valuesIterator.foreach(attr=>
                 {
-                buf.append(" ").append(attr.name).append("=\"")
-                xmlStr(attr.value, buf)
-                buf.append("\"")
+                buf.append(" ").append(attr.name).append("=\"").
+                    append(xmlStr(attr.value)).append("\"")
                 })
             if (elem.empty)
                 buf.append("/>\n")
             else
                 {
-                buf.append(">")
-                xmlStr(elem.value, buf)    
+                buf.append(">").append(xmlStr(elem.value))    
                 if (elem.children.size > 0)
                     {
                     buf.append("\n")

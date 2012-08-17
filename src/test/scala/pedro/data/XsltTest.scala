@@ -48,7 +48,7 @@ class XsltTest extends FeatureSpec with ShouldMatchers
             val inbuf = scala.io.Source.fromFile(docName)("UTF-8").mkString
             val result = filter.transform(inbuf.getBytes)
             assert(result.isDefined)
-            println(new String(result.get))
+            info(new String(result.get))
             }
 
     

@@ -44,7 +44,7 @@ class JdbcTest extends FeatureSpec with ShouldMatchers
         val ret = Jdbc(jdbcDriver, jdbcUrl, user, pass)
         if (!ret.isDefined)
             {
-            println("Connection failed")
+            info("Connection failed")
             return false
             }
         val jdbc = ret.get

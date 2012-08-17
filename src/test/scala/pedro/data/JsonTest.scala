@@ -93,8 +93,8 @@ class JsonTest extends FeatureSpec with ShouldMatchers
             val str = simpleStr
             val res = JsonParser.parse(str)
             res.isDefined should be === true
-            println("### plain :\n" + res.get.toString)
-            println("### pretty:\n" + res.get.pretty)
+            info("### plain :\n" + res.get.toString)
+            info("### pretty:\n" + res.get.pretty)
             }
 
         scenario("JSON should be able to parse a series of Json objects")
@@ -102,7 +102,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
             val str = multiStr
             val res = JsonPush.parse(str)(js =>
 	            {
-	            println("## js: " + js.pretty)
+	            info("## js: " + js.pretty)
 	            })
             assert(res)
             }
@@ -111,12 +111,12 @@ class JsonTest extends FeatureSpec with ShouldMatchers
             {
             val str = """["AB\\CD","\x41BCD",324,23,true,"AB\u0043D"]"""
 	        val res = JsonParser.parse(str)
-            println("res:"+res)
+            info("res:"+res)
 	        assert(res.isEmpty)
 
             val str2 = """["AB\\CD",324,23,true,"AB\u0043D"]"""
 	        val res2 = JsonParser.parse(str2)
-            println("res2:"+res2)
+            info("res2:"+res2)
 	        assert(res2.isDefined)
             }
         }
@@ -149,7 +149,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
             val date = new Date();
             val item = Item("hello", true, 1, 2L, 3.4, date)
 	        val js = Json.toJson(item)
-            println("js:"+js.toString)
+            info("js:"+js.toString)
 	        expect("hello")(js("sval").s)
 	        expect(true)(js("bval").b)
 	        expect(1)(js("ival").i)

@@ -57,7 +57,7 @@ class OAuth1Test extends FeatureSpec with ShouldMatchers
             val res = oauth.doGet("http://search.twitter.com/search.json", Map("q"->"#earthquake"))
             assert(res.isDefined)
             if (res.isDefined)
-                println("##### result:\n" + res.get)
+                info("##### result:\n" + res.get)
             }    
         }
 
@@ -87,7 +87,7 @@ class OAuth2Test extends FeatureSpec with ShouldMatchers
             val res = oauth.doGet("https://graph.facebook.com/btaylor")
             assert(res.isDefined)
             if (res.isDefined)
-                println("##### result:\n" + res.get)
+                info("##### result:\n" + res.get)
             }    
         }
 

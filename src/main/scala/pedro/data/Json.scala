@@ -43,57 +43,51 @@ trait JsonValue
     /**
      * Output a JSON string  with all of the proper escapes
      */       
-    def jsonStr(buf: StringBuilder, ins: String) =
+    def jsonStr(ins: String) : String =
         {
+        val buf = new StringBuilder
         buf.append('"')
         ins.foreach(ch=>
             {
-            if (ch == '\\')                buf.append("\\\\")
-            else if (ch == '\f')           buf.append("\\f")
-            else if (ch == '\b')           buf.append("\\b")
-            else if (ch == '\t')           buf.append("\\t")
-            else if (ch == '\r')           buf.append("\\r")
-            else if (ch == '\n')           buf.append("\\n")
+            if (ch == '\\')       buf.append("\\\\")
+            else if (ch == '\f')  buf.append("\\f")
+            else if (ch == '\b')  buf.append("\\b")
+            else if (ch == '\t')  buf.append("\\t")
+            else if (ch == '\r')  buf.append("\\r")
+            else if (ch == '\n')  buf.append("\\n")
             else if (ch >= 32 && ch < 127) buf.append(ch)
             else buf.append("\\u").
                  append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
                  append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
             })
         buf.append('"')
-        }
-
-    /**
-     * Override this for each type
-     */         
-    def serialize(buf: StringBuilder) =
-        buf.append("[this trait not implemented: " + getClass.getName + "]")
-
-    /**
-     * The basic string representation of this JsonValue.  Do not override.
-     */  
-    override def toString : String =
-        {
-        val buf = new StringBuilder
-        serialize(buf)
         buf.toString
         }
 
     /**
-     * "Pretty-print" this JsonValue, at the given column indentation.
-     * Overridden in JsonObject and JsonArray     
+     * The basic string representation of this JsonValue.  Override this for each type
      */  
-    def pretty(buf:StringBuilder, indent: Int) =
-        buf.append(toString)
+    override def toString : String =
+        {
+        "[this trait not implemented: " + getClass.getName + "]"
+        }
+
+    /**
+     * "Pretty-print" this JsonValue.  Override this for each type
+     */  
+    def pretty(indent: Int) : String = 
+        {
+        (" " * indent) + toString
+        }
 
     /**
      * "Pretty-print" this JsonValue.  Do not override.
      */  
     def pretty : String = 
         {
-        val buf = new StringBuilder
-        pretty(buf, 0)
-        buf.toString
+        pretty(0)
         }
+    
     
     /**
      * Every JsonValue type will have an apply(key) and apply(index) method,
@@ -269,35 +263,34 @@ object JsonValue
  */
 case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) =
+    override def toString : String =
         {
+        val buf = new StringBuilder
         var comma = ""
         buf.append('{')
         value.toList.sortWith((a,b) => a._1<b._1).foreach(a=>
             {
-            buf.append(comma)
-            jsonStr(buf, a._1)
-            buf.append(':')
-            a._2.serialize(buf)
+            buf.append(comma).append(jsonStr(a._1)).append(" : ").append(a._2.toString)
             comma = ","
             })
         buf.append('}')
+        buf.toString
         }
 
-    override def pretty(buf: StringBuilder, indent: Int) =
+    override def pretty(indent: Int) : String =
         {
+        val buf = new StringBuilder
         val startln = "\n" + (" "*indent)
         var comma = ""
         buf.append(startln).append("{")
         value.toList.sortWith((a,b) => a._1<b._1).foreach(e =>
             {
-            buf.append(comma).append(startln)
-            jsonStr(buf, e._1)
-            buf.append(" : ")
-            e._2.pretty(buf, indent+4)
+            buf.append(comma).append(startln).append(jsonStr(e._1)).
+                append(" : ").append(e._2.pretty(indent+4))
             comma = ","
             })
         buf.append(startln).append("}")
+        buf.toString
         }
     
     /**
@@ -317,31 +310,33 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
  */
 case class JsonArray(value: Seq[JsonValue]) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = 
+    override def toString : String = 
         {
+        val buf = new StringBuilder
         buf.append('[')
         var comma = ""
         value.foreach(a=>
             {
-            buf.append(comma)
-            a.serialize(buf)
+            buf.append(comma).append(a.toString)
             comma = ","
             })
         buf.append(']')
+        buf.toString
         }
 
-    override def pretty(buf: StringBuilder, indent: Int) =
+    override def pretty(indent: Int) =
         {
+        val buf = new StringBuilder
         val startln = "\n" + (" "*indent)
         var comma = ""
         buf.append(startln).append('[')
         value.foreach(e =>
             {
-            buf.append(comma).append(startln)
-            e.pretty(buf, indent+4)
+            buf.append(comma).append(startln).append(e.pretty(indent+4))
             comma = ","
             })
         buf.append(startln).append(']')
+        buf.toString
         }
 
     /**
@@ -370,23 +365,23 @@ case class JsonArray(value: Seq[JsonValue]) extends JsonValue
  */ 
 case object JsonNil extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = buf.append("null")
+    override def toString = "null"
 }
 case class JsonString(value: String) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = jsonStr(buf, value)
+    override def toString = jsonStr(value)
 }
 case class JsonDouble(value: Double) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = buf.append(value)
+    override def toString = value.toString
 }
 case class JsonInt(value: Long) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = buf.append(value)
+    override def toString = value.toString
 }
 case class JsonBoolean(value: Boolean) extends JsonValue
 {
-    override def serialize(buf: StringBuilder) = buf.append(value)
+    override def toString = value.toString
 }
 
 
@@ -798,7 +793,7 @@ class JsonParser(debug: Boolean = false) extends pedro.util.Logged
                         { case _ => (JsonDouble(res.get.toDouble), p+res.get.size) }
                 else 
                     {
-                    error(p, "unknown syntax for json value")
+                    error(p, "unknown syntax for json value: '" + ch + "'")
                     (JsonNil, -1)
                     }
                 }
