@@ -265,16 +265,9 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
 {
     override def toString : String =
         {
-        val buf = new StringBuilder
-        var comma = ""
-        buf.append('{')
-        value.toList.sortWith((a,b) => a._1<b._1).foreach(a=>
-            {
-            buf.append(comma).append(jsonStr(a._1)).append(" : ").append(a._2.toString)
-            comma = ","
-            })
-        buf.append('}')
-        buf.toString
+        val sorted = value.toList.sortWith((a,b) => a._1<b._1)
+        val vals = sorted.map(a => jsonStr(a._1) + " : " + a._2.toString)
+        vals.mkString("{", ",", "}")
         }
 
     override def pretty(indent: Int) : String =
@@ -312,16 +305,7 @@ case class JsonArray(value: Seq[JsonValue]) extends JsonValue
 {
     override def toString : String = 
         {
-        val buf = new StringBuilder
-        buf.append('[')
-        var comma = ""
-        value.foreach(a=>
-            {
-            buf.append(comma).append(a.toString)
-            comma = ","
-            })
-        buf.append(']')
-        buf.toString
+        value.map(_.toString).mkString("[", ",", "]")
         }
 
     override def pretty(indent: Int) =
