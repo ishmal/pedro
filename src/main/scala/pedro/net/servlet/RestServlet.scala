@@ -123,9 +123,9 @@ class RestServlet extends Servlet with pedro.util.Logged
             logout(req,resp)
         })
     
-    override def service(req: HttpServletRequest, resp: HttpServletResponse)=
+    override def service(req: HttpServletRequest, resp: HttpServletResponse) =
         {
-        val method = req.getMethod
+        val method = req.getMethod.toLowerCase
         var pathInfo = if (req.getPathInfo != null) req.getPathInfo else ""
         if (pathInfo.length > 1 && pathInfo(0) == '/')
             pathInfo = pathInfo.substring(1)
@@ -149,22 +149,23 @@ class RestServlet extends Servlet with pedro.util.Logged
                 }
             else
                 {
-                val auth = getAuth(req)
+                val newreq  = new Request(req)
+                val newresp = new Response(resp)
+                val auth = authorize(newreq, newresp)
                 if (auth.isDefined || resourceType == "login")
                     {
-                    val newreq  = new Request(req, auth getOrElse AuthNone)
-                    val newresp = new Response(resp)
+                    val h = handler.get
                     resp.setContentType(mimeType)
                     method match
                         {
-                        case "PUT" =>
-                            handler.get.doPut(newreq, newresp, resourceName)
-                        case "POST" =>
-                            handler.get.doPost(newreq, newresp)
-                        case "GET" =>
-                            handler.get.doGet(newreq, newresp, resourceName)
-                        case "DELETE" =>
-                            handler.get.doDelete(newreq, newresp, resourceName)
+                        case "put" =>
+                            h.doPut(newreq, newresp, resourceName)
+                        case "post" =>
+                            h.doPost(newreq, newresp)
+                        case "get" =>
+                            h.doGet(newreq, newresp, resourceName)
+                        case "delete" =>
+                            h.doDelete(newreq, newresp, resourceName)
                         case _ =>
                             {
                             //405 is "method not allowed"

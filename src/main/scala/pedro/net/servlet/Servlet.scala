@@ -24,7 +24,7 @@ package pedro.net.servlet
 
 
 import java.io.{Reader,Writer}
-import javax.servlet.http._
+import javax.servlet.http.{HttpServlet,HttpServletRequest,HttpServletResponse,HttpSession}
 
 
 
@@ -35,29 +35,29 @@ import javax.servlet.http._
  *  o   reduce the amount of code necessary
  */
 
-class Session(val self: HttpSession)
+class Session(val peer: HttpSession)
 {
     def apply(key: String) : Option[Any] =
-        Option(self.getAttribute(key))
+        Option(peer.getAttribute(key))
 
     def update(key: String, value: Any) =
         { //convert None back to null.  damn java
         val cvalue = if (value == None) null else value
-        self.setAttribute(key, cvalue)
+        peer.setAttribute(key, cvalue)
         }
 }
 
 
 
-class Request(val self : HttpServletRequest, val auth:Auth = AuthNone)
+class Request(val peer : HttpServletRequest)
 {
-    lazy val reader = self.getReader
+    lazy val reader = peer.getReader
 
     //useful for PUT
     def read : String =
         {
         val buf = new java.io.ByteArrayOutputStream
-        val ins = self.getInputStream
+        val ins = peer.getInputStream
         var ch = ins.read
         while (ch >= 0)
             {
@@ -70,19 +70,19 @@ class Request(val self : HttpServletRequest, val auth:Auth = AuthNone)
     val parameters =
         {
         val parms  = scala.collection.mutable.Map[String,String]()
-        val names  = self.getParameterNames
+        val names  = peer.getParameterNames
         while (names.hasMoreElements)
             {
             val name = names.nextElement.asInstanceOf[String]
-            parms   += name -> self.getParameter(name)
+            parms   += name -> peer.getParameter(name)
             }
         parms.toMap.withDefaultValue("")
         }
 
-    lazy val session = new Session(self.getSession)
+    lazy val session = new Session(peer.getSession)
     
-    lazy val pathInfo    = self.getPathInfo
-    lazy val servletPath = self.getServletPath
+    lazy val pathInfo    = peer.getPathInfo
+    lazy val servletPath = peer.getServletPath
 
     def apply(key: String) =
         parameters(key)
@@ -90,30 +90,32 @@ class Request(val self : HttpServletRequest, val auth:Auth = AuthNone)
 }
 
 
-
-class Response(val self : HttpServletResponse)
+/**
+ * @param peer the wrapped api Response
+ */
+class Response(val peer : HttpServletResponse)
 {
     
     def setContentLength(len: Int) =
-        self.setContentLength(len)
+        peer.setContentLength(len)
 
     def setContentType(typ: String) =
-        self.setContentType(typ)
+        peer.setContentType(typ)
 
     def +(msg: String) : Response =
         {
-        self.getOutputStream.write(msg.getBytes)
+        peer.getOutputStream.write(msg.getBytes)
         this
         }
     
     def +(msg: Array[Byte]) : Response =
         {
-        self.getOutputStream.write(msg)
+        peer.getOutputStream.write(msg)
         this
         }
 
     def sendError(code: Int, msg: String) =
-        self.sendError(code, msg)
+        peer.sendError(code, msg)
 }
 
 
@@ -126,14 +128,14 @@ class Response(val self : HttpServletResponse)
  *       filterChain.filter(request, buf)
  *       val bytes = buf.get  
  */  
-class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
+class BufferedResponse(peerArg : HttpServletResponse) extends Response(peerArg)
 {
     private val baos = new java.io.ByteArrayOutputStream
 
     def get =
         baos.toByteArray
 
-    override val self = new javax.servlet.http.HttpServletResponseWrapper(selfArg)
+    override val peer = new javax.servlet.http.HttpServletResponseWrapper(peerArg)
         {
         override def getOutputStream =
             new javax.servlet.ServletOutputStream
@@ -155,7 +157,7 @@ class BufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
  *       val bytes = buf.get  
  *       val hash  = buf.hash 
  */  
-class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(selfArg)
+class HashedBufferedResponse(resp : Response) extends Response(resp.peer)
 {
     private val baos = new java.io.ByteArrayOutputStream
 
@@ -165,7 +167,7 @@ class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(sel
 
     def get = baos.toByteArray
 
-    override val self = new javax.servlet.http.HttpServletResponseWrapper(selfArg)
+    override val peer = new javax.servlet.http.HttpServletResponseWrapper(resp.peer)
         {
         override def getOutputStream =
             new javax.servlet.ServletOutputStream
@@ -177,9 +179,12 @@ class HashedBufferedResponse(selfArg : HttpServletResponse) extends Response(sel
 }
 
 
-
+/**
+ * This is a basic servlet
+ */
 class Servlet extends HttpServlet
 {
+    
     private val hex = "0123456789abcdef".toCharArray
 
     /**
@@ -251,12 +256,6 @@ class Servlet extends HttpServlet
     def authorize(req: Request, resp: Response) : Option[Auth] =
         None
 
-    def getAuth(req: HttpServletRequest) : Option[Auth] =
-        {
-        val obj = Some(req.getSession.getAttribute("auth"))
-        obj.collect{case a:Auth => a}
-        }
-    
     override def service(req: HttpServletRequest, resp: HttpServletResponse) =
         {
         val newreq  = new Request(req)
@@ -264,9 +263,9 @@ class Servlet extends HttpServlet
 
         req.getMethod match
             {
-            case "PUT"    => doPut(newreq, newresp)
-            case "POST"   => doPost(newreq, newresp)
-            case "GET"    => doGet(newreq, newresp)
+            case "PUT"    => doPut   (newreq, newresp)
+            case "POST"   => doPost  (newreq, newresp)
+            case "GET"    => doGet   (newreq, newresp)
             case "DELETE" => doDelete(newreq, newresp)
             case _ =>
                 {
@@ -277,8 +276,7 @@ class Servlet extends HttpServlet
         resp.getOutputStream.flush
         }
         
-    var initParameters : Map[String,String] =
-        Map[String,String]()
+    private var t_initParameters = Map[String,String]()
 
     override def init(config: javax.servlet.ServletConfig)
         {
@@ -290,41 +288,45 @@ class Servlet extends HttpServlet
             val name = names.nextElement.asInstanceOf[String]
             parms += name -> getInitParameter(name)
             }
-        initParameters = parms.toMap.withDefaultValue("")     
+        t_initParameters = parms.toMap.withDefaultValue("")     
         initialize
         }
         
-
-
+    val initParameters : Map[String,String] = t_initParameters
+        
 }
 
 
-class FilterChain(val self: javax.servlet.FilterChain)
+
+/**
+ * @param peer the wrapped FilterChain
+ */
+class FilterChain(val peer: javax.servlet.FilterChain)
 {
     def filter(request: Request, response: Response) =
-        self.doFilter(request.self, response.self)        
+        peer.doFilter(request.peer, response.peer)        
 }
 
-class FilterConfig(val self: javax.servlet.FilterConfig)
+class FilterConfig(val peer: javax.servlet.FilterConfig)
 {
-    def name = self.getFilterName
+    def name = peer.getFilterName
     
     //slow, but only happens once at init() time
     lazy val initParameters = 
         {
         val parms = scala.collection.mutable.Map[String,String]()
-        val names = self.getInitParameterNames
+        val names = peer.getInitParameterNames
         while (names.hasMoreElements)
             {
             val name = names.nextElement.asInstanceOf[String]
-            parms += name -> self.getInitParameter(name)
+            parms += name -> peer.getInitParameter(name)
             }  
         parms.toMap.withDefaultValue("")
         }
 
     def apply(name: String) =  initParameters.getOrElse(name, "")
     
-    def servletContext = self.getServletContext
+    def servletContext = peer.getServletContext
 }
 
 
@@ -343,7 +345,7 @@ class Filter extends javax.servlet.Filter
         }
 
     def forward(url: String, request: Request, response: Response) =
-        request.self.getRequestDispatcher(url).forward(request.self, response.self)
+        request.peer.getRequestDispatcher(url).forward(request.peer, response.peer)
 
 
     override def init(config: javax.servlet.FilterConfig) =

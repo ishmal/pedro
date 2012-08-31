@@ -213,7 +213,7 @@ class CsvReader extends pedro.util.Logged
  * in a manner that will allow a subsequent reader to load the data 
  * undamaged.
  * 
- * @todo:  do we want to save as only strings, or in a manner according
+ * #TODO:  do we want to save as only strings, or in a manner according
  * to the type of the individual fields?     
  */   
 class CsvWriter extends pedro.util.Logged

@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
     "junit"                % "junit"              % "4.10"      % "test",
     "org.scalatest"        % "scalatest_2.9.2"    % "2.0.M3"    % "test",
     "com.h2database"       % "h2"                 % "1.3.168"   % "test",
-    "org.apache.tomcat"    % "tomcat-servlet-api" % "7.0.29"    % "compile,test"
+    "org.apache.tomcat"    % "servlet-api"        % "6.0.35"    % "compile,test"
 )
 
 scalacOptions += "-deprecation"

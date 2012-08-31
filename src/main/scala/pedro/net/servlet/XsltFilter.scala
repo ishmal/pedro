@@ -144,7 +144,7 @@ class XsltFilter extends Filter with pedro.util.Logged
             throw new javax.servlet.ServletException("XsltFilter '" + filterName + 
     		          "' cannot be used.  It was not configured properly")
                 
-        val bufferedResp = new HashedBufferedResponse(resp.self)
+        val bufferedResp = new HashedBufferedResponse(resp)
         chain.filter(req, bufferedResp)
 
         //Make input and output buffered streams
