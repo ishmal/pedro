@@ -2,7 +2,7 @@
  *  This is a simple implementation of OAuth for Scala.
  *
  *  Author: Bob Jamison
- *  Copyright, 2010 
+ *  Copyright (C) 2010-2012 Bob Jamison
  *    
  *  
  *  This program is free software: you can redistribute it and/or modify
@@ -180,38 +180,12 @@ class HashedBufferedResponse(resp : Response) extends Response(resp.peer)
 
 
 /**
- * This is a basic servlet
+ * This is a basic servlet.  Note that XmlOutput is mixed in,
+ * so that users can have the benefit of xmlStr() 
  */
-class Servlet extends HttpServlet
+class Servlet extends HttpServlet with pedro.data.XmlOutput
 {
     
-    private val hex = "0123456789abcdef".toCharArray
-
-    /**
-     * Escape XML entities.  Should use this for any unknown
-     * strings.     
-     */         
-    def xmlStr(ins: String) : String =
-        {
-        val buf = new StringBuilder
-        ins.foreach(ch=>
-            {
-            if (ch == '"')                 buf.append("&quot;")
-            else if (ch == '\'')           buf.append("&apos;")
-            else if (ch == '&')            buf.append("&amp;")
-            else if (ch == '<')            buf.append("&lt;")
-            else if (ch == '>')            buf.append("&gt;")
-            else if ((ch > 32 && ch < 127) || ch.isWhitespace) buf.append(ch)
-            else if (ch < 128)  //catch two-digit escapes
-                 buf.append("&#x").
-                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-            else buf.append("&#x").
-                 append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
-                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-            })
-        buf.toString
-        }
-
     /**
      * Can be overridden
      */     
@@ -276,7 +250,7 @@ class Servlet extends HttpServlet
         resp.getOutputStream.flush
         }
         
-    private var t_initParameters = Map[String,String]()
+    private var t_initParameters = Map[String, String]()
 
     override def init(config: javax.servlet.ServletConfig)
         {
@@ -292,7 +266,7 @@ class Servlet extends HttpServlet
         initialize
         }
         
-    val initParameters : Map[String,String] = t_initParameters
+    def initParameters : Map[String,String] = t_initParameters
         
 }
 
