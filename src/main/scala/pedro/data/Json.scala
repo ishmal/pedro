@@ -147,7 +147,7 @@ trait JsonValue
      * on the members of the List.  Classes other than JsonArray will return an empty
      * List.     
      */              
-    def toList : Seq[JsonValue] =
+    def toSeq : Seq[JsonValue] =
         List()
 
     /**
@@ -292,6 +292,7 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
 
     override def toMap : Map[String, JsonValue] =
         value
+
 }
 
 
@@ -332,8 +333,8 @@ case class JsonArray(value: Seq[JsonValue]) extends JsonValue
     override def map[U](f: (JsonValue) =>  U): Seq[U] =
         value.map(f)
 
-    override def toList : List[JsonValue] =
-        value.toList
+    override def toSeq : Seq[JsonValue] =
+        value.toSeq
 }
 
 
@@ -347,7 +348,7 @@ case object JsonNil extends JsonValue
 }
 case class JsonString(value: String) extends JsonValue
 {
-    override def toString = jsonStr(value)
+    override def toString = value
 }
 case class JsonDouble(value: Double) extends JsonValue
 {
