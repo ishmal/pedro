@@ -4,7 +4,7 @@
  * Authors:
  *   Bob Jamison
  *
- * Copyright (C) 2011 Bob Jamison
+ * Copyright (C) 2010-2012 Bob Jamison
  * 
  *  This file is part of the Pedro library.
  *
@@ -28,20 +28,16 @@ package pedro.data
 
 import java.util.Date
 
-
-
 /**
- * Common trait for all of the different JsonValue types.  Has common serialization
- * code and methods that should be visible for any JsonValue.  The purpose is to
- * allow the user to use any of these methods on any JsonValue, much like those
- * metods and properties would be available in Javascript.  
- */  
-trait JsonValue
+ * Common trait for all things that want to output Json strings.
+ * Users need not be members of this package.
+ */ 
+trait JsonOutput
 {
     private val hex = "0123456789abcdef".toCharArray
 
     /**
-     * Output a JSON string  with all of the proper escapes
+     * Output a JSON string with all of the proper escapes
      */       
     def jsonStr(ins: String) : String =
         {
@@ -63,6 +59,19 @@ trait JsonValue
         buf.append('"')
         buf.toString
         }
+    
+}
+
+
+
+/**
+ * Common trait for all of the different JsonValue types.  Has common serialization
+ * code and methods that should be visible for any JsonValue.  The purpose is to
+ * allow the user to use any of these methods on any JsonValue, much like those
+ * metods and properties would be available in Javascript.  
+ */  
+trait JsonValue extends JsonOutput
+{
 
     /**
      * The basic string representation of this JsonValue.  Override this for each type
@@ -403,6 +412,7 @@ object Json
         {
         def convert(obj: Any) : JsonValue = obj match
             {
+            case v: JsonValue   => v
             case v: String      => JsonString(v)
             case v: Double      => JsonDouble(v)
             case v: Float       => JsonDouble(v)

@@ -4,7 +4,7 @@
  * Authors:
  *   Bob Jamison
  *
- * Copyright (C) 2011 Bob Jamison
+ * Copyright (C) 2010-2012 Bob Jamison
  * 
  *  This file is part of the Pedro library.
  *
@@ -75,6 +75,36 @@ trait Node
 
 
 /**
+ * Common trait for things that need to output Xml
+ */ 
+trait XmlOutput
+{
+    private val hex = "0123456789abcdef".toCharArray
+
+    def xmlStr(ins: String)  =
+        {
+        val buf = new StringBuilder
+        for (ch <- ins)
+            {
+            if (ch == '"')       buf.append("&quot;")
+            else if (ch == '\'') buf.append("&apos;")
+            else if (ch == '&')  buf.append("&amp;")
+            else if (ch == '<')  buf.append("&lt;")
+            else if (ch == '>')  buf.append("&gt;")
+            else if ((ch > 32 && ch < 127) || ch.isWhitespace) buf.append(ch)
+            else if (ch < 128)  //catch two-digit escapes
+                 buf.append("&#x").
+                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
+            else buf.append("&#x").
+                 append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
+                 append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
+            }
+        buf.toString
+        }
+    
+}
+
+/**
  * This is the result of a projection.  Note that it has the same API as Node,
  * so that these can be chained together.
  */  
@@ -141,7 +171,7 @@ class Element(
     override val value     : String = "",
     val attributes         : Map[String, Attribute] = Map(),
     val children           : List[Element] = List()
-) extends Node
+) extends Node with XmlOutput
 {
     def empty = (children.size == 0 && value.size == 0)
 
@@ -200,30 +230,8 @@ class Element(
 
     override def toString : String = toXml
 
-    private val hex = "0123456789abcdef".toCharArray
-
     def toXml : String =
         {
-        def xmlStr(ins: String)  =
-            {
-            val buf = new StringBuilder
-            for (ch <- ins)
-                {
-                if (ch == '"')       buf.append("&quot;")
-                else if (ch == '\'') buf.append("&apos;")
-                else if (ch == '&')  buf.append("&amp;")
-                else if (ch == '<')  buf.append("&lt;")
-                else if (ch == '>')  buf.append("&gt;")
-                else if ((ch > 32 && ch < 127) || ch.isWhitespace) buf.append(ch)
-                else if (ch < 128)  //catch two-digit escapes
-                     buf.append("&#x").
-                     append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-                else buf.append("&#x").
-                     append(hex((ch >> 12)&0xf)).append(hex((ch >>  8)&0xf)).
-                     append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
-                }
-            buf.toString
-            }
 
         def elemOut(elem: Element, indent: Int, buf: StringBuilder) : Unit =
             {
