@@ -154,7 +154,6 @@ class CsvReader extends pedro.util.Logged
                     if (ch == EOF || ch == ',')
                         {
                         moreTerm = false
-                        xs += buf.toString.trim
                         }
                     else
                         {
@@ -162,6 +161,8 @@ class CsvReader extends pedro.util.Logged
                         pos += 1
                         }
                     }
+                val str = buf.toString.trim
+                xs += str
                 }
             pos = skipwhite(pos)
             val ch = get(pos)
@@ -172,7 +173,7 @@ class CsvReader extends pedro.util.Logged
             }
         if (pos != len)
             {
-            error(pos, "expected end-of-line or comma")
+            error(pos, "expected end-of-line or comma at")
             None
             }
         else
