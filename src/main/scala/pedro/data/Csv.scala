@@ -27,6 +27,19 @@
 package pedro.data
 
 
+import scala.collection.SeqProxy
+
+/**
+ * Let's wrap our sequence of strings for each row so that IndexOutOfBounds
+ * will simply return ""
+ */
+class CsvRow(override val self: Seq[String]) extends SeqProxy[String]
+{
+    override def apply(idx: Int) : String =
+        if (idx >= 0 && idx < self.size) self(idx) else ""
+}
+
+
 /**
  * This is a simple Csv reader that performs just a little bit more reasoning
  * while parsing a CSV file.  The largest decision is whether to treat a field
@@ -122,7 +135,7 @@ class CsvReader extends pedro.util.Logged
     /**
      * Parse line for CSV values.  Return None on failure
      */         
-    def parse(s: String) : Option[Seq[String]] =
+    def parse(s: String) : Option[CsvRow] =
         {
         lineNr += 1
         val xs = scala.collection.mutable.ListBuffer[String]()
@@ -137,7 +150,7 @@ class CsvReader extends pedro.util.Logged
                 {
                 val ret = quotedString(pos+1)
                 if (ret._2<0)
-                    return Some(xs.toList)
+                    return Some(new CsvRow(xs.toSeq))
                 else
                     {
                     xs += ret._1
@@ -177,16 +190,16 @@ class CsvReader extends pedro.util.Logged
             None
             }
         else
-            Some(xs.toSeq)
+            Some(new CsvRow(xs.toSeq))
         }
 
     /**
      * Parse a file for CSV lines.   Return a list of lists of Strings.  None on failure
      */         
-    def parseFile(fname: String) : Option[Seq[Seq[String]]] =
+    def parseFile(fname: String) : Option[Seq[CsvRow]] =
         {
         lineNr = 0
-        val buf = scala.collection.mutable.ListBuffer[Seq[String]]()
+        val buf = scala.collection.mutable.ListBuffer[CsvRow]()
         try
             {
             for (s <- scala.io.Source.fromFile(fname).getLines())
@@ -302,13 +315,13 @@ object Csv
     /**
      * Parse line for CSV values.  Return None on failure
      */         
-    def parse(s:String) : Option[Seq[String]] =
+    def parse(s:String) : Option[CsvRow] =
         (new CsvReader).parse(s)
 
     /**
      * Parse a file for CSV lines.   Call f() for each line
      */         
-    def parseFile(fname: String) : Option[Seq[Seq[String]]] =
+    def parseFile(fname: String) : Option[Seq[CsvRow]] =
         (new CsvReader).parseFile(fname)
         
     /**
