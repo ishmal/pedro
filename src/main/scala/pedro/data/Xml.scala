@@ -57,7 +57,7 @@ trait Node
         try
             { (this \ path).text.toInt }
         catch
-            { case _ => 0 }
+            { case _ : Throwable => 0 }
         }
 
     def \!(path: String) : Boolean =
@@ -65,7 +65,7 @@ trait Node
         try
             { (this \ path).text.toBoolean }
         catch
-            { case _ => false }
+            { case _  : Throwable => false }
         }
 
     def \\(path: String) : XpathResult =
@@ -121,7 +121,7 @@ class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProx
         try
             { \(path).text.toInt }
         catch
-            { case _ => 0 }
+            { case _  : Throwable => 0 }
         }
 
     def \!(path: String) : Boolean =
@@ -129,7 +129,7 @@ class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProx
         try
             { \(path).text.toBoolean }
         catch
-            { case _ => false }
+            { case _  : Throwable => false }
         }
 
     def \\(path: String) : XpathResult =
