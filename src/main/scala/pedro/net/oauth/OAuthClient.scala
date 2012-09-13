@@ -23,147 +23,24 @@
 
 package pedro.net.oauth
 
+import pedro.net.NetUtil
 
-/**
- * This trait has methods common to OAuth 1 and 2.
- */ 
-trait OAuthClient
+trait OAuthClient extends pedro.util.Logged
 {
-    val debug = false
-
-    //Override to redirect messages
-    def trace(msg: String) =
-        pedro.log.trace("OAuth: " + msg)
-    
-    //Override to redirect messages
-    def error(msg: String) =
-        pedro.log.error("OAuth err: " +msg)
-        
-    protected def paramStr(mp: Map[String, String]) : String =
-        mp.toList.sortWith((a,b) => a._1 < b._1).
-        map(e => encode(e._1)+"="+encode(e._2)).mkString("&")
-    
-    
-    protected def _post(urls: String, 
-             params: Map[String, String] = Map(),
-             props: Map[String, String] = Map()) : Option[String] =
-        {
-        val outs = paramStr(params).getBytes
-        val url = new java.net.URL(urls)
-        val conn = url.openConnection.asInstanceOf[java.net.HttpURLConnection]
-        try
-            {
-            conn.setRequestMethod("POST")
-            conn.setDoOutput(true)
-            conn.setRequestProperty("Content-Length", outs.length.toString)
-            props.foreach(e => conn.setRequestProperty(e._1, e._2))
-            conn.getOutputStream.write(outs)
-            conn.getOutputStream.close
-            Some(read(conn.getInputStream))
-            }
-        catch
-            {
-            case e:Exception => error("post: " + e)
-                error("post:" + read(conn.getErrorStream))
-            None
-            }
-        }
-
-    protected def _postv(urls: String, 
-             params: Map[String, String] = Map(),
-             props: Map[String, String] = Map()) : Option[Map[String,String]] =
-        {
-        val res = _post(urls, params, props)
-        res.flatMap(s=>Some(parseValues(s)))
-        }
-
-    protected def _get(baseUrl: String, 
-             params: Map[String, String] = Map(),
-             props: Map[String, String] = Map()) : Option[String] =
-        {
-        val urls = if (params.size == 0) baseUrl else baseUrl + "?" + paramStr(params)
-        val url = new java.net.URL(urls)
-        val conn = url.openConnection.asInstanceOf[java.net.HttpURLConnection]
-        try
-            {
-            props.foreach(e => conn.setRequestProperty(e._1, e._2))
-            Some(read(conn.getInputStream))
-            }
-        catch
-            {
-            case e:Exception => error("get: " + e)
-                error("get:" + read(conn.getErrorStream))
-            None
-            }
-        }
-
-
-    //Parse ?name1=value1&name2=value2&  ...etc
-    def parseValues(str: String) : Map[String, String] =
-        {
-        trace("parseValues:" + str)
-        val vals = scala.collection.mutable.Map[String, String]()
-        str.split("&").foreach(pair=>
-            {
-            val p = pair.split("=")
-            if (p.size>=2)        // name=value
-                vals += p(0) -> p(1)
-            else if (p.size>=1)   // name=  or just name
-                vals += p(0) -> ""
-            })
-        vals.toMap
-        }
-
-    private val hex = "0123456789ABCDEF".toCharArray //must be uppers
-
-    /**
-     * This is not really url-encoding, but RFC 3986
-     */
-    protected def encode(str: String) : String =
-        {
-        val buf = new StringBuilder
-        str.foreach(ch =>
-            {
-            if (ch.isLetterOrDigit || ch == '-' || ch == '.' || ch == '_' || ch == '~')
-                buf.append(ch)
-            else
-                buf.append("%").append(hex((ch>>4)&0xf)).append(hex(ch&0xf))
-            })
-        buf.toString
-        }
-
-    //Use the runtime's builtin base64, cleverly hidden away
-    protected def base64(plain: Array[Byte]) : String =
-        javax.xml.bind.DatatypeConverter.printBase64Binary(plain)
-
-    //read an input stream into a string
-    protected def read(ins: java.io.InputStream) : String =
-        scala.io.Source.fromInputStream(ins).mkString
-
     /**
      * Perform a POST with the given base URL string and parameters.
      * A raw string is returned.  parseValues can read it if desired to
      * pull out name/value pairs.
      */     
-    def doPost(urls: String, params: Map[String, String] = Map()) : Option[String] =
-        {
-        error("doPost not implemented")
-        None
-        }
+    def doPost(urls: String, params: Map[String, String] = Map()) : Option[String]
  
     /**
      * Perform a GET with the given base URL string and parameters.
      * A raw string is returned.  parseValues can read it if desired to
      * pull out name/value pairs.
      */     
-    def doGet(urls: String, params: Map[String, String] = Map()) : Option[String] =
-        {
-        error("doGet not implemented")
-        None
-        }
-
+    def doGet(urls: String, params: Map[String, String] = Map()) : Option[String]
 }
-
 
 //########################################################################
 //### O A U T H  version 1
@@ -196,10 +73,8 @@ case class OAuth1Account
     )
 
 
-class OAuth1Client(
-    account  : OAuth1Account = new OAuth1Account,
-    override val debug : Boolean = false
-) extends OAuthClient
+class OAuth1Client( account  : OAuth1Account = new OAuth1Account,
+     debug : Boolean = false) extends OAuthClient
 {
     private val hmac = "HMAC-SHA1"
 
@@ -216,8 +91,8 @@ class OAuth1Client(
     private def signature(httpMethod: String, baseURI: String,
                    parms: Map[String,String], secret: String)  =
         {
-        val params = paramStr(parms)
-        val baseStr = httpMethod + "&" + encode(baseURI) + "&" + encode(params)
+        val params = NetUtil.paramStr(parms)
+        val baseStr = httpMethod + "&" + NetUtil.encode(baseURI) + "&" + NetUtil.encode(params)
         trace("baseStr: " + baseStr)
         val method = hmac match //Convert to Java's method names
             {
@@ -229,13 +104,13 @@ class OAuth1Client(
         val key = acct.consumerSecret + "&" + secret
         val signingKey = new javax.crypto.spec.SecretKeySpec(key.getBytes, method)
         mac.init(signingKey)
-        val str = base64(mac.doFinal(baseStr.getBytes))
+        val str = NetUtil.base64(mac.doFinal(baseStr.getBytes))
         str
         }
     
     private def authorizationString(parms: Map[String, String]) : String =
         "OAuth " + parms.toList.sortWith((a,b) => a._1 < b._1).
-            map(a=> a._1 + "=\"" + encode(a._2) + "\"").mkString(", ")
+            map(a=> a._1 + "=\"" + NetUtil.encode(a._2) + "\"").mkString(", ")
 
     private def getRequestToken : Boolean =
         {
@@ -250,7 +125,7 @@ class OAuth1Client(
         val sig = signature("POST", acct.requestTokenURL, parms, "")
         val authStr = authorizationString(parms + ("oauth_signature" -> sig) )
         //println("authStr: " + authStr)
-        val res = _postv(acct.requestTokenURL, props = Map("Authorization"->authStr))
+        val res = NetUtil.postv(acct.requestTokenURL, props = Map("Authorization"->authStr))
         requestToken = res.flatMap(_.get("oauth_token"))
         requestTokenSecret = res.flatMap(_.get("oauth_token_secret"))
         if (requestToken.isEmpty || requestTokenSecret.isEmpty)
@@ -288,7 +163,7 @@ class OAuth1Client(
                 )
         val sig = signature("POST", acct.accessURL, parms, requestTokenSecret.get)
         val authStr = authorizationString(parms + ("oauth_signature" -> sig) )
-        val res = _postv(acct.accessURL, props=Map("Authorization"->authStr))
+        val res = NetUtil.postv(acct.accessURL, props=Map("Authorization"->authStr))
         val accessToken = res.flatMap(_.get("oauth_token"))
         val accessTokenSecret = res.flatMap(_.get("oauth_token_secret"))
         if (accessToken.isEmpty || accessTokenSecret.isEmpty)
@@ -325,7 +200,7 @@ class OAuth1Client(
           "oauth_version"          -> "1.0"
           )
 
-    override def doPost(urls: String, params: Map[String, String] = Map()) : Option[String] =
+    def doPost(urls: String, params: Map[String, String] = Map()) : Option[String] =
         {
         if (!checkAccess)
             None
@@ -335,11 +210,11 @@ class OAuth1Client(
             val sig = signature("POST", urls, oparams++params, acct.accessTokenSecret)
             val authStr = authorizationString(oparams + ("oauth_signature" -> sig) )
             trace("authStr: " + authStr)
-            _post(urls, params, props=Map("Authorization"->authStr))
+            NetUtil.post(urls, params, props=Map("Authorization"->authStr))
             }
         }
 
-    override def doGet(urls: String, params: Map[String, String] = Map()) : Option[String] =
+    def doGet(urls: String, params: Map[String, String] = Map()) : Option[String] =
         {
         if (!checkAccess)
             None
@@ -349,7 +224,7 @@ class OAuth1Client(
             val sig = signature("GET", urls, oparams++params, acct.accessTokenSecret)
             val authStr = authorizationString(oparams + ("oauth_signature" -> sig) )
             trace("authStr: " + authStr)
-            _get(urls, params, props=Map("Authorization"->authStr))
+            NetUtil.get(urls, params, props=Map("Authorization"->authStr))
             }
         }
 
@@ -384,10 +259,8 @@ case class OAuth2Account
     )
 
 
-class OAuth2Client(
-    account : OAuth2Account = new OAuth2Account,
-    override val debug : Boolean = false
-) extends OAuthClient
+class OAuth2Client( account : OAuth2Account = new OAuth2Account,
+         debug : Boolean = false) extends OAuthClient
 {
     private var acct = account
 
@@ -426,7 +299,7 @@ class OAuth2Client(
         else
             {
             val query = vrfy.split("#").last
-            val args = parseValues(query)
+            val args = NetUtil.parseValues(query)
             val accessToken = args.get("access_token")
             if (accessToken.isDefined)
                 {
@@ -440,7 +313,7 @@ class OAuth2Client(
 
     private def getAuthDirect : Boolean =
         {
-        val res = _postv(acct.accessTokenURL, 
+        val res = NetUtil.postv(acct.accessTokenURL, 
             Map("type"->"client_cred",
                 "client_id"->acct.clientId,
                 "client_secret"->acct.clientSecret))
@@ -464,20 +337,20 @@ class OAuth2Client(
             false
         }
 
-    override def doPost(urls: String, params: Map[String, String] = Map()) : Option[String] =
+    def doPost(urls: String, params: Map[String, String] = Map()) : Option[String] =
         {
         if (!checkAccess)
             None
         else
-            _post(urls , params + ("access_token"->acct.accessToken))
+            NetUtil.post(urls , params + ("access_token"->acct.accessToken))
         }
 
-    override def doGet(urls: String, params: Map[String, String] = Map()) : Option[String] =
+    def doGet(urls: String, params: Map[String, String] = Map()) : Option[String] =
         {
         if (!checkAccess)
             None
         else
-            _get(urls , params + ("access_token"->acct.accessToken))
+            NetUtil.get(urls , params + ("access_token"->acct.accessToken))
         }
 }
 
