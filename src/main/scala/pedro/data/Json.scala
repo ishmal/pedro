@@ -442,7 +442,7 @@ object Json
             try  //try int first, then double
                 { JsonInt(str.toLong) }
             catch
-                { case _ => JsonDouble(str.toDouble) }
+                { case _ : Throwable => JsonDouble(str.toDouble) }
         else 
             JsonString(str)
         }
@@ -765,7 +765,7 @@ class JsonParser(debug: Boolean = false) extends pedro.util.Logged
                     try  //try int first, then double
                         { (JsonInt(res.get.toLong), p+res.get.size) }
                     catch
-                        { case _ => (JsonDouble(res.get.toDouble), p+res.get.size) }
+                        { case _ : Throwable => (JsonDouble(res.get.toDouble), p+res.get.size) }
                 else 
                     {
                     error(p, "unknown syntax for json value: '" + ch + "'")

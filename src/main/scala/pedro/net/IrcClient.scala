@@ -592,7 +592,7 @@ class IrcClient(
             case _ => try
                           { cmd.toInt }
                       catch
-                          { case _ => trace("unknown command:" + cmd) ; return true }
+                          { case _  : Throwable => trace("unknown command:" + cmd) ; return true }
             }
         
         val nick = from.split("!")(0)

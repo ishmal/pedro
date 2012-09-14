@@ -687,7 +687,7 @@ object Encoder
     
     def stringArray(values: String*)(implicit desc: AmqpDescriptor=AmqpNoDesc) : AmqpArray[AmqpString] =
         {
-        AmqpArray(values.map(v=> AmqpString(v))toSeq, desc)
+        AmqpArray(values.map(v=> AmqpString(v)).toSeq, desc)
         }
     
     def intArray(values: Int*)(implicit desc: AmqpDescriptor=AmqpNoDesc) : AmqpArray[AmqpInt] =
