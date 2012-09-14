@@ -374,41 +374,25 @@ case class JsonBoolean(value: Boolean) extends JsonValue
 
 
 
+
 /**
  * 
  */ 
 object Json
 {
-    import java.lang.reflect.{Method,Modifier}
+    import scala.reflect.runtime.universe._
     
     val DATE_FORMAT = "yyyyMMddHHmmss.SSSZ"
       
     lazy val dateFormatter = new java.text.SimpleDateFormat(DATE_FORMAT)
     
     def parseDate(v: JsonValue) : Date =
-        {
         dateFormatter.parse(v)
-        }
-
-    //Cache our methods so that we do not need to scan every time
-    private val cache = scala.collection.mutable.Map[Class[_], Map[String, Method]]()
-    
-    private def scan(clazz: Class[_]) : Map[String, Method] =
-        cache.getOrElseUpdate(clazz,
-            {
-            val methods = clazz.getMethods.map(m=>(m.getName, m)).toMap
-            val fields  = clazz.getDeclaredFields.collect
-                {case f if Modifier.isPrivate(f.getModifiers) => f.getName}.toSet
-            methods.filterKeys(fields)
-            })
 
     /**
-     * Generate a JsonValue object tree representing a Product.
-     * This is intended for serializing case classes.  We do not try
-     * to serialize everything, only Products, sequences, and a set
-     * of expected primitive values.
+     * Generate a JsonValue object tree representing an object.
      */                   
-    def toJson(obj: Product) : JsonObject =
+    def toJson(obj: Any) : JsonObject =
         {
         def convert(obj: Any) : JsonValue = obj match
             {
@@ -422,17 +406,17 @@ object Json
             case v: Date        => JsonString(dateFormatter.format(v))
             case v: Iterable[_] => toArray(v)
             case v: Array[_]    => toArray(v)
-            case v: Product     => toObject(v)
+            case v: Any         => toObject(v)
             case _              => JsonNil  // error?
             }
 
         def toArray(arr: Iterable[_]) : JsonArray =
             new JsonArray(arr.map(v=>convert(v)).toList)
 
-        //TODO: recode this with Product when it no longer sucks
-        def toObject(obj: Product) : JsonObject =
+        //After 2 years, finally we get scala reflection.  YAAY!
+        def toObject(obj: Any) : JsonObject =
             {
-            val mp = scan(obj.getClass).toList.map(e => e._1 -> convert(e._2.invoke(obj))).toMap
+            val typ = typeOf(obj)
             new JsonObject(mp)
             }
 
@@ -463,11 +447,12 @@ object Json
             JsonString(str)
         }
     
-    val registeredProducts = scala.collection.mutable.Map[String,(JsonValue)=>Product]()
+    val registeredFactories = 
+        scala.collection.mutable.Map[String,(JsonValue)=>Any]()
     
     /**
-     * If you want a Product serialized by this tool to be automatically reparseable
-     * into a product, then register a function (possibly during your product's constructor)
+     * If you want an object serialized by this tool to be automatically reparseable
+     * into an object, then register a function (possibly during your product's constructor)
      * Example:
      * <pre>
      *  case class Item(
@@ -493,31 +478,32 @@ object Json
      *
      * </pre>
      * 
-     * Once all desired classes have been registered, then val obj = Json.toProduct(js)
-     * should return a valid Product.
+     * Once all desired classes have been registered, then val obj = Json.deserialize(js)
+     * should return a valid Any.
      */
-    def registerProduct(obj: Product, creator: (JsonValue) => Product) =
-    {
-        registeredProducts += obj.getClass.getName -> creator
-    }
+    def registerFactory(obj: Any, creator: (JsonValue) => Any) =
+        {
+        registeredFactories += obj.getClass.getName -> creator
+        }
 
     /**
      * Creates a Product that has been registered here with registerProduct
      */
-    def toProduct(js: JsonValue) : Option[Product] =
-    {
+    def deserialize(js: JsonValue) : Option[Any] =
+        {
         val className : String = js("_class_")
         if (className.size == 0)
             None
         else
-        {
-            val creator = registeredProducts.get(className)
+            {
+            val creator = registeredFactories.get(className)
             if (creator.isEmpty)
                 None
             else
                 Some(creator.get(js))
+            }
         }
-    }
+
 }
 
 
