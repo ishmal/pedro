@@ -109,7 +109,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
 
         scenario("JSON should be able to handle a series of escaped values")
             {
-            val str = """["AB\\CD","\x41BCD",324,23,true,"AB\u0043D"]"""
+            val str = """["AB\\CD","\xabcd", 324,23,true,"AB\u0043D"]"""
 	        val res = JsonParser.parse(str)
             info("res:"+res)
 	        assert(res.isEmpty)
@@ -130,7 +130,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
         val dateval : Date = new Date
         )
         {
-        Json.registerProduct(this, {js=>
+        Json.registerFactory(this, {js=>
             Item(
                 sval    = js("sval"),
                 bval    = js("bval"),
@@ -144,12 +144,13 @@ class JsonTest extends FeatureSpec with ShouldMatchers
     
     feature("Convert Product to JsonObject")
         {
-        scenario("JSON should convert to and from Products correctly")
+        scenario("JSON should convert to and from objects correctly")
             {
             val date = new Date();
             val item = Item("hello", true, 1, 2L, 3.4, date)
 	        val js = Json.toJson(item)
-            info("js:"+js.toString)
+            val jss : String = js.pretty
+            info("js:" + jss)
 	        expect("hello")(js("sval").s)
 	        expect(true)(js("bval").b)
 	        expect(1)(js("ival").i)
@@ -157,7 +158,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
 	        expect(3.4)(js("dval").d)
 	        expect(date)(Json.parseDate(js("dateval")))
 	        
-	        val res = Json.toProduct(js)
+	        val res = Json.deserialize(js)
 	        assert(res.isDefined)
 	        val isCorrectType = res.get match
 	            {

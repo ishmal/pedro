@@ -25,6 +25,7 @@
 
 package pedro.data
 
+import language.dynamics
 
 import java.util.Date
 
@@ -380,7 +381,9 @@ case class JsonBoolean(value: Boolean) extends JsonValue
  */ 
 object Json
 {
+    import scala.reflect.ClassTag
     import scala.reflect.runtime.universe._
+    val mirror = scala.reflect.runtime.currentMirror
     
     val DATE_FORMAT = "yyyyMMddHHmmss.SSSZ"
       
@@ -414,10 +417,20 @@ object Json
             new JsonArray(arr.map(v=>convert(v)).toList)
 
         //After 2 years, finally we get scala reflection.  YAAY!
-        def toObject(obj: Any) : JsonObject =
+        def toObject[T : ClassTag](obj: T) : JsonObject =
             {
-            val typ = typeOf(obj)
-            new JsonObject(mp)
+            val im = mirror.reflect(obj)
+            val syms = im.symbol.typeSignature.members.collect
+                  {
+                  case m: MethodSymbol if m.isAccessor => m
+                  }.toList
+            val props = for (sym <- syms) yield
+                {
+                val name = sym.name.toString
+                val value = im.reflectMethod(sym).apply()
+                (name, convert(value))
+                }
+            new JsonObject(props.toMap)
             }
 
         val map = toObject(obj).value + ("_class_" -> JsonString(obj.getClass.getName))
