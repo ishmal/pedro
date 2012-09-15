@@ -130,7 +130,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
         val dateval : Date = new Date
         )
         {
-        Json.registerFactory(this, {js=>
+        Json.registerFactory(getClass, {js=>
             Item(
                 sval    = js("sval"),
                 bval    = js("bval"),
@@ -159,8 +159,7 @@ class JsonTest extends FeatureSpec with ShouldMatchers
 	        expect(date)(Json.parseDate(js("dateval")))
 	        
 	        val res = Json.deserialize(js)
-	        assert(res.isDefined)
-	        val isCorrectType = res.get match
+	        val isCorrectType = res match
 	            {
                 case v:Item => true
                 case _ => false

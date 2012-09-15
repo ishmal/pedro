@@ -465,7 +465,7 @@ object Json
     
     /**
      * If you want an object serialized by this tool to be automatically reparseable
-     * into an object, then register a function (possibly during your product's constructor)
+     * into an object, then register a function (possibly during your class's constructor)
      * Example:
      * <pre>
      *  case class Item(
@@ -477,7 +477,7 @@ object Json
      *    val dateval : Date = new Date
      *  )
      *  {
-     *  Json.registerProduct(this, {js=>
+     *  Json.registerFactory(this, {js=>
      *      Item(
      *          sval    = js("sval"),
      *          bval    = js("bval"),
@@ -494,27 +494,27 @@ object Json
      * Once all desired classes have been registered, then val obj = Json.deserialize(js)
      * should return a valid Any.
      */
-    def registerFactory(obj: Any, creator: (JsonValue) => Any) =
+    def registerFactory(clazz: Class[_], factory: (JsonValue) => Any) =
         {
-        registeredFactories += obj.getClass.getName -> creator
+        registeredFactories += clazz.getName -> factory
         }
 
     /**
-     * Creates a Product that has been registered here with registerProduct
+     * Creates a object of a class that has been registered here with registerFactory
+     *      
+     * @param js a JsonValue to use to initialize an object of the given class. 
+     *      This should be a JsonObject with a "_class_" property that with the same
+     *      class name that was used in the call to registerFactory()               
+     * @return an object of the registered type specified by its "_class_" property,
+     * or None if not found.  Pattern matching can be used to collect the results.          
      */
-    def deserialize(js: JsonValue) : Option[Any] =
+    def deserialize(js: JsonValue) : Any =
         {
-        val className : String = js("_class_")
-        if (className.size == 0)
+        val factory = registeredFactories.get(js("_class_"))
+        if (factory.isEmpty)
             None
         else
-            {
-            val creator = registeredFactories.get(className)
-            if (creator.isEmpty)
-                None
-            else
-                Some(creator.get(js))
-            }
+            factory.get(js)
         }
 
 }
