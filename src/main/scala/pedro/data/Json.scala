@@ -358,7 +358,7 @@ case object JsonNil extends JsonValue
 }
 case class JsonString(value: String) extends JsonValue
 {
-    override def toString = value
+    override def toString = "\"" + value + "\""
 }
 case class JsonDouble(value: Double) extends JsonValue
 {
@@ -395,9 +395,9 @@ object Json
     /**
      * Generate a JsonValue object tree representing an object.
      */                   
-    def toJson(obj: Any) : JsonObject =
+    def toJson(obj: Any) : JsonValue =
         {
-        def convert(obj: Any) : JsonValue = obj match
+        def fromInstance(obj: Any) : JsonValue = obj match
             {
             case v: JsonValue   => v
             case v: String      => JsonString(v)
@@ -414,7 +414,7 @@ object Json
             }
 
         def toArray(arr: Iterable[_]) : JsonArray =
-            new JsonArray(arr.map(v=>convert(v)).toList)
+            new JsonArray(arr.map(v=>fromInstance(v)).toList)
 
         //After 2 years, finally we get scala reflection.  YAAY!
         def toObject[T : ClassTag](obj: T) : JsonObject =
@@ -428,16 +428,16 @@ object Json
                 {
                 val name = sym.name.toString
                 val value = im.reflectMethod(sym).apply()
-                (name, convert(value))
+                (name, fromInstance(value))
                 }
-            new JsonObject(props.toMap)
+            val classTuple = Seq(("_class_" , JsonString(obj.getClass.getName)))
+            new JsonObject((props ++ classTuple).toMap)
             }
 
-        val map = toObject(obj).value + ("_class_" -> JsonString(obj.getClass.getName))
-        new JsonObject(map)
+        fromInstance(obj)
         }
     
-    def toString(obj:Product) =
+    def toString(obj: Any) =
         toJson(obj).toString
 
     private val doubleMatcher = "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r
