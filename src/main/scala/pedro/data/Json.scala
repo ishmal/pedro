@@ -385,10 +385,15 @@ object Json
     import scala.reflect.runtime.universe._
     val mirror = scala.reflect.runtime.currentMirror
     
-    val DATE_FORMAT = "yyyyMMddHHmmss.SSSZ"
+    private var dateFormat = "yyyy-MM-dd HH:mm:ss"
+    private var dateFormatter = new java.text.SimpleDateFormat(dateFormat)
+    def DATE_FORMAT = dateFormat
+    def DATE_FORMAT_(format: String) =
+        {
+        dateFormat = format
+        dateFormatter = new java.text.SimpleDateFormat(dateFormat)
+        }
       
-    lazy val dateFormatter = new java.text.SimpleDateFormat(DATE_FORMAT)
-    
     def parseDate(v: JsonValue) : Date =
         dateFormatter.parse(v)
 
