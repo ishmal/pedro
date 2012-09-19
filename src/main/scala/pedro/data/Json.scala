@@ -276,7 +276,7 @@ case class JsonObject(value: Map[String,JsonValue]) extends JsonValue
     override def toString : String =
         {
         val sorted = value.toList.sortWith((a,b) => a._1<b._1)
-        val vals = sorted.map(a => jsonStr(a._1) + " : " + a._2.toString)
+        val vals = sorted.map(a => jsonStr(a._1) + ":" + a._2.toString)
         vals.mkString("{", ",", "}")
         }
 
