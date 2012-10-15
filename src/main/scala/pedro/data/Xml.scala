@@ -38,10 +38,10 @@ import scala.collection.mutable.ListBuffer
  */      
 trait Node
 {
-    val namespace = ""
-    val prefix    = ""
-    val name      = ""
-    val value     = ""
+    val namespace : String
+    val prefix    : String
+    val name      : String
+    val value     : String
 
     def apply(attrName: String) : String =
         ""
@@ -100,9 +100,10 @@ trait XmlOutput
                  append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
             }
         buf.toString
-        }
-    
+        }  
 }
+
+
 
 /**
  * This is the result of a projection.  Note that it has the same API as Node,
@@ -153,24 +154,24 @@ class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProx
 /**
  * Attribute of an element.    name="value"
  */ 
-class Attribute(
-    override val namespace : String = "",
-    override val prefix    : String = "",
-    override val name      : String = "",
-    override val value     : String = ""
+case class Attribute(
+    val namespace : String = "",
+    val prefix    : String = "",
+    val name      : String = "",
+    val value     : String = ""
 ) extends Node
 {}
 
 /**
  * XML Element.
  */ 
-class Element(
-    override val namespace : String = "",
-    override val prefix    : String = "",
-    override val name      : String = "",
-    override val value     : String = "",
-    val attributes         : Map[String, Attribute] = Map(),
-    val children           : List[Element] = List()
+case class Element(
+    val namespace   : String = "",
+    val prefix      : String = "",
+    val name        : String = "",
+    val value       : String = "",
+    val attributes  : Map[String, Attribute] = Map(),
+    val children    : List[Element] = List()
 ) extends Node with XmlOutput
 {
     def empty = (children.size == 0 && value.size == 0)
@@ -348,7 +349,7 @@ class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
         for (i <- 0 until jattrs.getLength)
             {
             val key = jattrs.getLocalName(i)
-            item.attrs += key -> new Attribute(name = key, value = jattrs.getValue(i))
+            item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
         stack.push(item)        
         }
@@ -359,7 +360,7 @@ class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
     override def endElement(uri: String, localName: String, qName: String) =
         {
         val item = stack.pop
-        val elem = new Element(
+        val elem = Element(
             name       = localName, 
             attributes = item.attrs.toMap,
             children   = item.children.toList,
