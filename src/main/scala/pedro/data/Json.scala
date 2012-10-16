@@ -379,7 +379,7 @@ case class JsonBoolean(value: Boolean) extends JsonValue
 /**
  * 
  */ 
-object Json
+object Json extends JsonOutput
 {
     import scala.reflect.ClassTag
     import scala.reflect.runtime.universe._
