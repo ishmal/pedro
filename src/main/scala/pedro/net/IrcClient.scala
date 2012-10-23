@@ -27,8 +27,6 @@ package pedro.net
 
 
 
-import scala.actors.Actor
-import scala.actors.Actor._
 import scala.collection.mutable.ListBuffer
 
 //########################################################################
@@ -63,7 +61,11 @@ case class IrcSound(from:String, target: String, name:String) extends IrcEvent
 case class IrcVersion(from:String, target: String) extends IrcEvent
 
 
-
+object IrcNullPF extends PartialFunction[IrcEvent, Unit]
+{
+    def isDefinedAt(v: IrcEvent) = false
+    def apply(v: IrcEvent) : Unit = {}
+}
 
 class IrcClient(
     val host: String    = "irc.freenode.net",
@@ -71,8 +73,8 @@ class IrcClient(
     val name: String    = "noname",
     val nick: String    = "nonick",
     val defaultChannel: String = "",
-    val observer: Actor = new IrcClientObserver,
-    val debug: Boolean  = false
+    val debug: Boolean  = false, 
+    val callbacks: PartialFunction[IrcEvent, Unit] = IrcNullPF
     ) extends pedro.util.Logged
 {
     //########################################################################
@@ -284,6 +286,8 @@ class IrcClient(
     val CMD_QUIT             = 1006
     val CMD_NOTICE           = 1007
     val CMD_PONG             = 1008
+    
+    val observer = this
 
 
     def status(msg: String) =
@@ -400,6 +404,7 @@ class IrcClient(
         else
             true
         }
+        
 
     private def doConnect : Boolean =
         {
@@ -410,7 +415,7 @@ class IrcClient(
             socket = Some(sock)
             outs = Some(new java.io.BufferedWriter(new java.io.OutputStreamWriter(sock.getOutputStream)))
             ins  = Some(new java.io.BufferedReader(new java.io.InputStreamReader(sock.getInputStream)))
-            actor(receiveLoop)
+            startReceiver
             send("USER scala * * :Scala Client")
             doNick
             if (defaultChannel.length > 0)
@@ -428,7 +433,7 @@ class IrcClient(
 
     private def doDisconnect : Boolean =
         {
-        receiveMore = false
+        stopReceiver
         if (socket.isDefined)
             {
             send("QUIT")
@@ -466,45 +471,58 @@ class IrcClient(
         }
 
 
-    private var receiveMore = true
     private var pingCheckTime = System.currentTimeMillis
 
-    private def receiveLoop =
+    class Receiver extends Thread
         {
-        receiveMore = true
-        while (receiveMore && socket.isDefined)
+        var cont = false
+        override def run =
             {
-            val str = readLine
-            if (str.isEmpty || (str.isDefined && str.get.length > 0 && !process(str.get)))
-                receiveMore = false
-            val currentTime = System.currentTimeMillis
-            if (currentTime > pingCheckTime + 120000)
+            cont = true
+            while (cont && socket.isDefined)
                 {
-                pingCheckTime = currentTime
-                if (!send("PING " + host))
+                val str = readLine
+                if (str.isEmpty || (str.isDefined && str.get.length > 0 && !process(str.get)))
+                    cont = false
+                val currentTime = System.currentTimeMillis
+                if (currentTime > pingCheckTime + 120000)
                     {
-                    trace("Sending PING failed.  Disconnecting")
-                    receiveMore = false
+                    pingCheckTime = currentTime
+                    if (!send("PING " + host))
+                        {
+                        trace("Sending PING failed.  Disconnecting")
+                        cont = false
+                        }
                     }
                 }
+            trace("###### End receive loop")
+            doDisconnect
             }
-        trace("###### End receive loop")
-        doDisconnect
+        
+        def abort =
+            cont = false
+        }
+        
+    private var receiver = new Receiver
+        
+    private def startReceiver =
+        {
+        receiver = new Receiver
+        receiver.start
+        }
+        
+    private def stopReceiver =
+        {
+        receiver.abort
         }
 
-
-    private var retryMore = true
-    
-    /**
-     * Attempt to connect to the server.  Actually, this is a retry loop, and
-     * the real connection is made in doConnect     
-     */         
-    def connect : Boolean =
+    class ConnectionLoop extends Thread
         {
-        actor
+        var cont = false
+        override def run =
             {
-            retryMore = true
-            while (retryMore)
+            cont = true
+            while (cont)
                 {
                 if (socket.isEmpty)
                     {
@@ -514,6 +532,21 @@ class IrcClient(
                 Thread.sleep(60000)
                 }
             }
+
+        def abort =
+            cont = false
+        }
+
+    private var connectionLoop = new ConnectionLoop
+    
+    /**
+     * Attempt to connect to the server.  Actually, this is a retry loop, and
+     * the real connection is made in doConnect     
+     */         
+    def connect : Boolean =
+        {
+        connectionLoop = new ConnectionLoop
+        connectionLoop.start
         true //Todo: what does this mean?
         }
     
@@ -523,7 +556,7 @@ class IrcClient(
      */         
     def disconnect : Boolean =
         {
-        retryMore = false
+        connectionLoop.abort
         doDisconnect
         true
         }
@@ -677,80 +710,60 @@ class IrcClient(
             }
         true
         }
-}
 
-
-
-
-
-class IrcClientObserver extends Actor
-{
-    def out(s: String) =
-        println(s)
-        
-    /**
-     * When you extend this class, override this to customize.  Cases
-     * found here will be executed rather than in the defaults.  This
-     * provides a simple way of "overriding" cases.          
-     */
-    val callbacks : PartialFunction[Any, Unit] =
-        {
-        case IrcNone =>
-        }
-
-
-    private val defaultCallbacks : PartialFunction[Any, Unit] =
+    private val defaultCallbacks : PartialFunction[IrcEvent, Unit] =
         {
         case IrcConnected(user, host) =>
-            out("connected: " + user + " : " + host)
+            trace("connected: " + user + " : " + host)
         case IrcDisconnected(user, host) =>
-            out("disconnected: " + user + " : " + host)
+            trace("disconnected: " + user + " : " + host)
         case IrcStatus(msg) =>
-            out("status:" + msg)
+            trace("status:" + msg)
         case IrcChat(from, to, msg) =>
-            out("chat from:" + from + " to:" + to + " msg:" + msg)
+            trace("chat from:" + from + " to:" + to + " msg:" + msg)
         case IrcMotd(msg) =>
-            out("motd:" + msg)
+            trace("motd:" + msg)
         case IrcJoin(nick, channel) =>
-            out("join:" + channel + " : " + nick)
+            trace("join:" + channel + " : " + nick)
         case IrcPart(nick, channel) =>
-            out("part:" + channel + " : " + nick)
+            trace("part:" + channel + " : " + nick)
         case IrcNick(oldNick, newNick) =>
-            out("nick: '" + oldNick + "' is now known as '" + newNick + "'")
+            trace("nick: '" + oldNick + "' is now known as '" + newNick + "'")
         case IrcQuit(user, fullid, msg) =>
-            out("quit: " + user + " (" + fullid + ") has left irc : " + msg)
+            trace("quit: " + user + " (" + fullid + ") has left irc : " + msg)
         case IrcNotice(msg) =>
-            out("notice: " + msg)
+            trace("notice: " + msg)
         case IrcInfo(msg) =>
-            out("info: " + msg)
+            trace("info: " + msg)
         case IrcMode(channel, mode) =>
-            out("mode: " + channel + " : " + mode)
+            trace("mode: " + channel + " : " + mode)
         case IrcNameList(channel, names) =>
-            out("names:" + channel + " : " + names.mkString(","))
+            trace("names:" + channel + " : " + names.mkString(","))
         case IrcChanList(channels) =>
-            out("channels: " + channels.mkString(","))
+            trace("channels: " + channels.mkString(","))
         case IrcWhoList(channel, users) =>
-            out("who: " + channel + " : " + users.mkString(","))
+            trace("who: " + channel + " : " + users.mkString(","))
         case IrcCtcp(from, to, msg) =>
-            out("ctcp from:"+from + " to:" + to + " msg:" + msg)
+            trace("ctcp from:"+from + " to:" + to + " msg:" + msg)
         case IrcPing(from, to) =>
-            out("ping from:"+from + " to:" + to)
+            trace("ping from:"+from + " to:" + to)
         case IrcAction(from, to, msg) =>
-            out("action from:"+from + " to:" + to + " msg:" + msg)
+            trace("action from:"+from + " to:" + to + " msg:" + msg)
         case IrcUrl(from, to, msg) =>
-            out("url from:"+from + " to:" + to + " msg:" + msg)
+            trace("url from:"+from + " to:" + to + " msg:" + msg)
             java.awt.Desktop.getDesktop().browse(new java.net.URI(msg))
         case IrcSound(from, to, msg) =>
-            out("sound from:"+from + " to:" + to + " msg:" + msg)
+            trace("sound from:"+from + " to:" + to + " msg:" + msg)
         case IrcVersion(from, to) =>
-            out("version from:"+from + " to:" + to)
+            trace("version from:"+from + " to:" + to)
         }
 
-    private def compoundPF[K,V](pfs: PartialFunction[K,V]*) : PartialFunction[K,V] =
-        pfs.reduceLeft(_ orElse _)
-
-    def act = while (true) receive(compoundPF(callbacks, defaultCallbacks))
+    private val handler = callbacks orElse defaultCallbacks
+        
+    private def !(evt: IrcEvent) =
+        handler(evt)
     
+
 }
 
 
@@ -762,8 +775,7 @@ object IrcClientTest
 
     def doTest =
         {
-        val cli = new IrcClient(debug=true, defaultChannel="#scala",
-            nick="pedrobot", observer=new IrcClientObserver)
+        val cli = new IrcClient(debug=true, defaultChannel="#scala", nick="pedrobot")
         cli.connect
         }
 
@@ -776,7 +788,7 @@ object IrcClientTest
 /**
  * This is a simple, minimalist bot.
  */ 
-class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
+class IrcBot(configName: String = "ircbot.js")
 {
     var host    = "irc.freenode.net"
     var port    = 6667
@@ -789,22 +801,14 @@ class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
     def trace(msg: String) =
         pedro.log.trace("IrcBot: " + msg)
 
-    /**
-     * When you extend this class, override this to customize.
-     * Do it like this:
-     */
-    /*              
-    override val callbacks : PartialFunction[Any, Unit] =
+    val callbacks : PartialFunction[IrcEvent, Unit] =
         {
         case IrcConnected(user, host) =>
-            out("connected: " + user + " : " + host)
-        ....etc...
+           trace("connected: " + user + " : " + host)
         }
-    */
 
     def startup : Boolean =
         {
-        start // the actor
         if (!getConfig)
             false
         else
@@ -814,7 +818,7 @@ class IrcBot(configName: String = "ircbot.js") extends IrcClientObserver
             trace("nick: " + nick)
             trace("channel: " + channel)
             val cli = new IrcClient(debug=true, host=host, port=port,
-                   nick=nick, defaultChannel="#scala", observer=this)
+                   nick=nick, defaultChannel="#scala", callbacks=callbacks)
             cli.connect
             }
         }

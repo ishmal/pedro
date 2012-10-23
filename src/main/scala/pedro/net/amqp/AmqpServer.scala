@@ -28,11 +28,6 @@
 package pedro.net.amqp
 
 
-
-import scala.actors.Actor
-import scala.actors.Actor._
-
-
 import java.security.cert.X509Certificate
 
 
@@ -71,10 +66,7 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
 
 
 
-    class HandlerMessage
-    case object Abort extends HandlerMessage
-
-    class Handler(socket: java.net.Socket) extends Actor
+    class Handler(socket: java.net.Socket) extends Thread
     {
         var sock = socket
         
@@ -111,8 +103,6 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
                 }
             }
 
-        var keepHandling = true
-        
         val bufsize = 1024
         val recvBuf = Array.ofDim[Byte](bufsize)
         
@@ -164,27 +154,24 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
             true
             }
 
-        def act =
+        private var cont = false
+        override def run =
             {
             handlers += this
             if (handshake)
                 {
-                while (keepHandling)
+                while (cont)
                     {
                     if (!receiveFrame)
-                        keepHandling = false
-                    else
-                        {
-                        receiveWithin(1000)
-                            {
-                            case Abort => keepHandling = false
-                            }
-                        }
+                        cont = false
                     }   
                 }           
             sock.close
             handlers -= this
             }
+
+        def abort =
+            cont = false
         
     }
 
@@ -195,27 +182,34 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
     
     val handlers = scala.collection.mutable.Set[Handler]()
 
-    var keepListening = true
-
-    def listen =
+    class Listener extends Thread
         {
-        keepListening = true
-        while (keepListening && ssock.isDefined)
-            {
-            try
-                {
-                val sock = ssock.get.accept
-                (new Handler(sock)).start
-                }
-            catch
-                {
-                case e: java.net.SocketTimeoutException => // this one is ok
-                case e: Exception => error("listen: " + e)
-                    keepListening = false
-                }
-            } 
+        var cont = false
         
+        override def run =
+            {
+            cont = true
+            while (cont && ssock.isDefined)
+                {
+                try
+                    {
+                    val sock = ssock.get.accept
+                    (new Handler(sock)).start
+                    }
+                catch
+                    {
+                    case e: java.net.SocketTimeoutException => // this one is ok
+                    case e: Exception => error("listen: " + e)
+                        cont = false
+                    }
+                } 
+            }
+            
+        def abort =
+            cont = false
         }
+        
+    private var listener = new Listener
 
 
     def start : Boolean =
@@ -225,7 +219,8 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
             val sock = new java.net.ServerSocket(port)
             sock.setSoTimeout(1000)
             ssock = Some(sock)
-            actor(listen)
+            listener = new Listener
+            listener.start
             true
             }
         catch
@@ -237,8 +232,8 @@ class AmqpServer(port: Int = 5672) extends pedro.util.Logged
 
     def stop : Boolean =
         {
-        handlers.foreach(h=> h!Abort)
-        keepListening = false
+        handlers.foreach(_.abort)
+        listener.abort
         if (ssock.isDefined)
             ssock.get.close
         ssock = None
