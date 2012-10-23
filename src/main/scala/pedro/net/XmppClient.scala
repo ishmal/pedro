@@ -28,6 +28,7 @@ import pedro.data.XmlReader
 import java.net.Socket
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import javax.net.ssl.{HandshakeCompletedEvent,HandshakeCompletedListener}
 import javax.net.ssl.{SSLContext,SSLSocket,TrustManager,X509TrustManager}
 
 //########################################################################
@@ -122,7 +123,18 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         val factory = customSocketFactory
         //val factory = SSLSocketFactory.getDefault.asInstanceOf[SSLSocketFactory]
         val sslsock = factory.createSocket(sock, host, port, true).asInstanceOf[SSLSocket]
+        var done = false
+        sslsock.addHandshakeCompletedListener(new HandshakeCompletedListener
+            {
+            def handshakeCompleted(event: HandshakeCompletedEvent) =
+               done = true
+            })
         sslsock.startHandshake
+        while (!done)
+            {
+            Thread.sleep(100)
+            }
+        trace("handshake done")
         sock = sslsock
         reader = Some(new java.io.InputStreamReader(sock.getInputStream, "UTF-8"))
         writer = Some(new java.io.BufferedWriter(new java.io.OutputStreamWriter(sock.getOutputStream,"UTF-8")))         
@@ -268,7 +280,7 @@ object XmppClientTest
 
     def doTest =
         {
-        val cli = new XmppClient(debug=true, host="talk.google.com", jid="user@gmail.com", pass="pass")
+        val cli = new XmppClient(debug=true, host="jabber.org", jid="user@jabber.org", pass="pass")
         cli.connect
         }
 
