@@ -151,12 +151,12 @@ class JsonTest extends FeatureSpec with ShouldMatchers
 	        val js = Json.toJson(item)
             val jss : String = js.pretty
             info("js:" + jss)
-	        expect("hello")(js("sval").s)
-	        expect(true)(js("bval").b)
-	        expect(1)(js("ival").i)
-	        expect(2L)(js("lval").l)
-	        expect(3.4)(js("dval").d)
-	        expect(date)(Json.parseDate(js("dateval")))
+	        expectResult("hello")(js("sval").s)
+	        expectResult(true)(js("bval").b)
+	        expectResult(1)(js("ival").i)
+	        expectResult(2L)(js("lval").l)
+	        expectResult(3.4)(js("dval").d)
+	        expectResult(date)(Json.parseDate(js("dateval")))
 	        
 	        val res = Json.deserialize(js)
 	        val isCorrectType = res match

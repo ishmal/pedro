@@ -43,7 +43,7 @@ class AmqpTest extends FeatureSpec with ShouldMatchers
                 0x00.toByte, 0xa2.toByte, 0x03.toByte, 0x61.toByte, 0x62.toByte, 0x63.toByte,
                 0xe0.toByte, 0x08.toByte, 0x03.toByte, 0xa1.toByte, 
                 0x01.toByte, 0x61.toByte, 0x01.toByte, 0x62.toByte, 0x01.toByte, 0x63.toByte)
-            expect(exp)(strarr.bytes)
+            expectResult(exp)(strarr.bytes)
             }    
         }
 
