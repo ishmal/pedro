@@ -366,8 +366,7 @@ class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
             children   = item.children.toList,
             value      = item.buf.toString.trim
             )
-        if (root.isEmpty)
-            root = Some(elem)
+        root = Some(elem)
         if (stack.size > 0)
             stack.top.children += elem
         }
