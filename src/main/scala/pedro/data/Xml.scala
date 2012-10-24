@@ -446,10 +446,7 @@ object XmlReader
  * at a time until you have an Element, or simply read characters and allow
  * a callback to be invoked.     
  */ 
-class XmlPush(
-    val threshold: Int = 1,
-    val f: (Element)=>Unit = _ => ()
-    )
+class XmlPush extends pedro.util.Logged
 {
     var depth        = 0      // how nested in tags?
     var inComment    = false  // we are in <!-- -->
@@ -462,8 +459,6 @@ class XmlPush(
     var trivialTag   = false  // if it is <name/>
     
     val buf = new StringBuilder
-
-    val streamNS = "http://etherx.jabber.org/streams"
 
     private def resetState =
         {
@@ -481,14 +476,13 @@ class XmlPush(
         {
         resetState
         buf.clear
-        depth    = 0
+        depth = 0
         }
     
     def out(str: String) : Option[Element] =
         {
         println("parse:" + str)
         val elem = (new XmlReader).parse(str)
-        elem.foreach(f)
         elem
         }
 
@@ -497,10 +491,10 @@ class XmlPush(
      *  This is the state machine.  Please understand this
      *  before modifying.     
      */
-    def +(chr: Int) : Option[Element] =
+    def append(chr: Int, threshold: Int=0, suffix: String = "") : Option[Element] =
         {
         val ch = chr.asInstanceOf[Char]
-        //trace("ch : " + ch)
+        print(ch)
         buf.append(ch)
         if (inComment)
             {
@@ -533,9 +527,10 @@ class XmlPush(
                         depth -= 1
                     else 
                         depth += 1 
-                if (depth < threshold && !querySeen)
+                println("depth: " + depth)
+                if (depth <= threshold && !querySeen)
                     {
-                    val res = buf.toString
+                    val res = buf.append(suffix).toString
                     reset
                     return out(res)
                     }
@@ -580,28 +575,24 @@ class XmlPush(
  */ 
 object XmlPush
 {
-    def parse(str: String = "", depth:Int = 1)(f: (Element)=>Unit) : Boolean =
+    def parse(str: String = "", depth:Int = 1) : Boolean =
         {
-        val parser = new XmlPush(depth, f)
-        str.foreach(ch=> parser + ch)
+        val parser = new XmlPush
+        str.foreach(ch=> parser.append(ch, depth))
         true
         }
 
-    def parseFile(fname: String, depth:Int = 1)(f: (Element)=>Unit) : Boolean =
+    def parseFile(fname: String, depth:Int = 1) : Boolean =
         {
-        val parser = new XmlPush(depth, f)
-        scala.io.Source.fromFile(fname).foreach(ch=> parser + ch)
+        val parser = new XmlPush
+        scala.io.Source.fromFile(fname).foreach(ch=> parser.append(ch, depth))
         true
         }
     
     def main(argv: Array[String]) : Unit =
-        parseFile("test.xml")(elem=> 
-            {
-            println("xml:" + elem.toXml)
-            })
+        parseFile("test.xml")
+
 }
-
-
 
 
 

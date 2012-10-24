@@ -24,37 +24,61 @@
  */
 package pedro.net
 
-import pedro.data.XmlReader
+import pedro.data.{XmlPush, Element}
+import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
-import java.security.SecureRandom
+import java.security.{KeyStore,SecureRandom}
 import java.security.cert.X509Certificate
 import javax.net.ssl.{HandshakeCompletedEvent,HandshakeCompletedListener}
-import javax.net.ssl.{SSLContext,SSLSocket,TrustManager,X509TrustManager}
+import javax.net.ssl.{SSLContext,SSLSocket,SSLSocketFactory,TrustManager,TrustManagerFactory,X509TrustManager}
 
 //########################################################################
 //### Connections
 //########################################################################
 trait XmppConnection
+{
+    val pushParser = new XmlPush
+    
+    def read : Int
+    
+    def readStanza(level: Int = 0, suffix: String = "") : Option[Element] =
+        {
+        var res : Option[Element] = None
+        while (res.isEmpty)
+            {
+            var ch = read
+            if (ch < 0)
+                return None
+            val res = pushParser.append(ch, level, suffix)
+            }
+        res
+        }
+}
 
 class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
 {
 
     private var sock = new java.net.Socket
-    private var reader : Option[java.io.InputStreamReader] = None
-    private var writer : Option[java.io.BufferedWriter] = None
-    
+    private var istr : Option[BufferedReader] = None
+    private var ostr : Option[BufferedWriter] = None
+
     private def err(msg: String) =
         println("XmppTcpConnection err: " + msg)
     private def trace(msg: String) =
         println("XmppTcpConnection: " + msg)
+        
+    def attachStreams =
+        {
+        istr = Some(new BufferedReader(new InputStreamReader(sock.getInputStream)))
+        ostr = Some(new BufferedWriter(new OutputStreamWriter(sock.getOutputStream)))
+        }
     
     def open : Boolean =
         {
         try
             { 
             sock = new java.net.Socket(host, port) 
-            reader = Some(new java.io.InputStreamReader(sock.getInputStream, "UTF-8"))
-            writer = Some(new java.io.BufferedWriter(new java.io.OutputStreamWriter(sock.getOutputStream, "UTF-8")))
+            attachStreams
             true
             }
         catch
@@ -67,40 +91,33 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         
     def close : Boolean =
         {
-        reader = None
-        writer = None
         sock.close
+        istr = None
+        ostr = None
         true
         }
         
-    def read : Option[String] =
+
+    def read : Int =
         {
-        if (reader.isEmpty)
-            None
+        if (istr.isEmpty)
+           -1
         else
             {
-            val r = reader.get
-            while (!r.ready)
-                {}
-            val buf = new StringBuilder
-            while (r.ready)
-                buf.append(r.read.toChar)
-            Some(buf.toString)
+            istr.get.read
             }
         }
         
     def write(str: String) : Boolean =
         {
-        if (writer.isDefined)
+        if (ostr.isEmpty)
+            false
+        else
             {
-            val w = writer.get
-            w.write(str)
-            //w.newLine
-            w.flush
+            ostr.get.write(str)
+            ostr.get.flush
             true
             }
-        else
-            false
         }
 
     
@@ -117,28 +134,36 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         sc.init(null, Array[TrustManager](trm), new SecureRandom)
         sc.getSocketFactory
         }
+    val defaultSocketFactory = SSLSocketFactory.getDefault.asInstanceOf[SSLSocketFactory]
         
+    def trySSL(factory: SSLSocketFactory) : Option[Socket] =
+        {
+        try
+            {
+            val sslsock = factory.createSocket(sock, sock.getInetAddress().getHostAddress(),
+                     sock.getPort(), true).asInstanceOf[SSLSocket]
+            sslsock.setUseClientMode(true)
+            sslsock.startHandshake
+            Some(sslsock)
+            }
+        catch
+            {
+            case e: Exception => err("trySSL: " + e)
+                None
+            }
+        }
     def goSSL : Boolean =
         {
-        val factory = customSocketFactory
-        //val factory = SSLSocketFactory.getDefault.asInstanceOf[SSLSocketFactory]
-        val sslsock = factory.createSocket(sock, host, port, true).asInstanceOf[SSLSocket]
-        var done = false
-        sslsock.addHandshakeCompletedListener(new HandshakeCompletedListener
+        val sslsock = trySSL(customSocketFactory)
+        //val sslsock = trySSL(defaultSocketFactory)
+        if (sslsock.isEmpty)
+            false
+        else
             {
-            def handshakeCompleted(event: HandshakeCompletedEvent) =
-               done = true
-            })
-        sslsock.startHandshake
-        while (!done)
-            {
-            Thread.sleep(100)
+            sock = sslsock.get
+            attachStreams
+            true
             }
-        trace("handshake done")
-        sock = sslsock
-        reader = Some(new java.io.InputStreamReader(sock.getInputStream, "UTF-8"))
-        writer = Some(new java.io.BufferedWriter(new java.io.OutputStreamWriter(sock.getOutputStream,"UTF-8")))         
-        true
         }
 }
 
@@ -204,16 +229,14 @@ class XmppClient(
     
     private def doHandshake : Boolean =
         {
-        val startmsg = "<?xml version='1.0'?>" +
+        val startmsg =
                 "<stream:stream to='" + domain + "' xmlns='jabber:client' " +
                 "xmlns:stream='http://etherx.jabber.org/streams' "+
                 "version='1.0'>"
         conn.write(startmsg)  
         trace("msg: " + startmsg)
-        var res = conn.read
-        trace("res: " + res) 
-        var elem = XmlReader.parse(res.get + "</stream:stream>")
-        trace("elem: " + elem)
+        var elem = conn.readStanza(2, "</stream:stream>")
+        trace("elem: " + elem) 
         val starttls = (elem.get \\ "starttls").size > 0
         trace("starttls: " + starttls)
         var mechanisms = (elem.get \\ "mechanism").map(_.value)
@@ -221,9 +244,9 @@ class XmppClient(
         if (starttls)
             {
             conn.write("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
-            val rr = conn.read
-            trace("rr: " + rr)
-            if (rr.get.indexOf("proceed") >= 0)
+            elem = conn.readStanza()
+            trace("elem: " + elem)
+            if (elem.get.name == "proceed")
                 {
                 if (!conn.goSSL)
                     {
@@ -231,11 +254,13 @@ class XmppClient(
                     return false
                     }
                 trace("starttls ok")
-                conn.write(startmsg)  
                 trace("msg: " + startmsg)
-                res = conn.read
-                trace("res: " + res) 
-                elem = XmlReader.parse(res.get + "</stream:stream>")
+                conn.write(startmsg)  
+                elem = conn.readStanza()
+                trace("elem: " + elem) 
+                val authmsg = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
+                conn.write(authmsg)
+                elem = conn.readStanza()
                 trace("elem: " + elem)
                 mechanisms = (elem.get \\ "mechanism").map(_.value)
                 trace("mech: " + mechanisms)
@@ -280,7 +305,7 @@ object XmppClientTest
 
     def doTest =
         {
-        val cli = new XmppClient(debug=true, host="jabber.org", jid="user@jabber.org", pass="pass")
+        val cli = new XmppClient(debug=true, host="localhost", jid="user@129-7-67-40.dhcp.uh.edu", pass="pass")
         cli.connect
         }
 
