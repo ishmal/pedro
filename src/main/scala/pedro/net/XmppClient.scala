@@ -37,22 +37,38 @@ import javax.net.ssl.{SSLContext,SSLSocket,SSLSocketFactory,TrustManager,TrustMa
 //########################################################################
 trait XmppConnection
 {
-    val pushParser = new XmlPush
+    
     
     def read : Int
     
-    def readStanza(level: Int = 0, suffix: String = "") : Option[Element] =
+    def readStanza : Option[Element] =
         {
+        val pushParser = new XmlPush
         var res : Option[Element] = None
         while (res.isEmpty)
             {
             var ch = read
             if (ch < 0)
                 return None
-            val res = pushParser.append(ch, level, suffix)
+            val res = pushParser.append(ch)
             }
         res
         }
+    
+    def readStreamHead : Option[Element] =
+        {
+        val pushParser = new XmlPush(1, "</stream:stream>", true)
+        var res : Option[Element] = None
+        while (res.isEmpty)
+            {
+            var ch = read
+            if (ch < 0)
+                return None
+            val res = pushParser.append(ch)
+            }
+        res            
+        }
+        
 }
 
 class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
@@ -235,7 +251,9 @@ class XmppClient(
                 "version='1.0'>"
         conn.write(startmsg)  
         trace("msg: " + startmsg)
-        var elem = conn.readStanza(2, "</stream:stream>")
+        var elem = conn.readStreamHead
+        trace("elem: " + elem) 
+        elem = conn.readStanza
         trace("elem: " + elem) 
         val starttls = (elem.get \\ "starttls").size > 0
         trace("starttls: " + starttls)
@@ -244,7 +262,7 @@ class XmppClient(
         if (starttls)
             {
             conn.write("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
-            elem = conn.readStanza()
+            elem = conn.readStanza
             trace("elem: " + elem)
             if (elem.get.name == "proceed")
                 {
@@ -256,11 +274,11 @@ class XmppClient(
                 trace("starttls ok")
                 trace("msg: " + startmsg)
                 conn.write(startmsg)  
-                elem = conn.readStanza()
+                elem = conn.readStreamHead
                 trace("elem: " + elem) 
                 val authmsg = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
                 conn.write(authmsg)
-                elem = conn.readStanza()
+                elem = conn.readStanza
                 trace("elem: " + elem)
                 mechanisms = (elem.get \\ "mechanism").map(_.value)
                 trace("mech: " + mechanisms)
@@ -305,7 +323,7 @@ object XmppClientTest
 
     def doTest =
         {
-        val cli = new XmppClient(debug=true, host="localhost", jid="user@129-7-67-40.dhcp.uh.edu", pass="pass")
+        val cli = new XmppClient(debug=true, host="jabber.org", jid="user@jabber.org", pass="pass")
         cli.connect
         }
 

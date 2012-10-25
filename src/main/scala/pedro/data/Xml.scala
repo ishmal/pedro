@@ -446,7 +446,7 @@ object XmlReader
  * at a time until you have an Element, or simply read characters and allow
  * a callback to be invoked.     
  */ 
-class XmlPush extends pedro.util.Logged
+class XmlPush(level: Int = 0, suffix: String = "", onOpenTag : Boolean = false) extends pedro.util.Logged
 {
     var depth        = 0      // how nested in tags?
     var inComment    = false  // we are in <!-- -->
@@ -460,25 +460,6 @@ class XmlPush extends pedro.util.Logged
     
     val buf = new StringBuilder
 
-    private def resetState =
-        {
-        inComment    = false
-        commentDelim = 0
-        inTag        = true
-        slashSeen    = false
-        querySeen    = false
-        quoteChar    = 0
-        textSeen     = false
-        trivialTag   = false
-        }
-
-    private def reset
-        {
-        resetState
-        buf.clear
-        depth = 0
-        }
-    
     def out(str: String) : Option[Element] =
         {
         println("parse:" + str)
@@ -491,7 +472,7 @@ class XmlPush extends pedro.util.Logged
      *  This is the state machine.  Please understand this
      *  before modifying.     
      */
-    def append(chr: Int, threshold: Int=0, suffix: String = "") : Option[Element] =
+    def append(chr: Int) : Option[Element] =
         {
         val ch = chr.asInstanceOf[Char]
         print(ch)
@@ -510,7 +491,7 @@ class XmlPush extends pedro.util.Logged
         else
             {
             if (ch == '<')
-                { if (depth==threshold-1) {buf.clear; buf.append('<')} ; resetState ; commentDelim = 1}
+                { if (depth==level-1) {buf.clear; buf.append('<')} ; commentDelim = 1}
             else if (ch == '!' && commentDelim == 1)
                 commentDelim = 2
             else if (ch == '-' && commentDelim == 2)
@@ -523,16 +504,27 @@ class XmlPush extends pedro.util.Logged
                     return None
                 inTag = false
                 if (!trivialTag && !querySeen)
-                    if (slashSeen)
-                        depth -= 1
-                    else 
-                        depth += 1 
-                println("depth: " + depth)
-                if (depth <= threshold && !querySeen)
                     {
-                    val res = buf.append(suffix).toString
-                    reset
-                    return out(res)
+                    if (slashSeen)
+                        {
+                        depth -= 1
+                        println("depth: " + depth)
+                        if (depth < level && !querySeen && !onOpenTag)
+                            {
+                            val res = buf.append(suffix).toString
+                            return out(res)
+                            }
+                        }
+                    else 
+                        {
+                        depth += 1 
+                        println("depth: " + depth)
+                        if (depth >= level && !querySeen && onOpenTag)
+                            {
+                            val res = buf.append(suffix).toString
+                            return out(res)
+                            }
+                        }
                     }
                 }
             else if (ch == '/')
@@ -569,30 +561,4 @@ class XmlPush extends pedro.util.Logged
         }
 
 }
-
-/**
- * Convenience object for calling the push parser
- */ 
-object XmlPush
-{
-    def parse(str: String = "", depth:Int = 1) : Boolean =
-        {
-        val parser = new XmlPush
-        str.foreach(ch=> parser.append(ch, depth))
-        true
-        }
-
-    def parseFile(fname: String, depth:Int = 1) : Boolean =
-        {
-        val parser = new XmlPush
-        scala.io.Source.fromFile(fname).foreach(ch=> parser.append(ch, depth))
-        true
-        }
-    
-    def main(argv: Array[String]) : Unit =
-        parseFile("test.xml")
-
-}
-
-
 
