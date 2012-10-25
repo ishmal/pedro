@@ -41,34 +41,6 @@ trait XmppConnection
     
     def read : Int
     
-    def readStanza : Option[Element] =
-        {
-        val pushParser = new XmlPush
-        var res : Option[Element] = None
-        while (res.isEmpty)
-            {
-            var ch = read
-            if (ch < 0)
-                return None
-            val res = pushParser.append(ch)
-            }
-        res
-        }
-    
-    def readStreamHead : Option[Element] =
-        {
-        val pushParser = new XmlPush(1, "</stream:stream>", true)
-        var res : Option[Element] = None
-        while (res.isEmpty)
-            {
-            var ch = read
-            if (ch < 0)
-                return None
-            val res = pushParser.append(ch)
-            }
-        res            
-        }
-        
 }
 
 class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
@@ -197,22 +169,22 @@ case class XmppDisconnected(user:String, host:String) extends XmppEvent
 case class XmppStatus(msg: String) extends XmppEvent
 
 
-object XmppNullPF extends PartialFunction[XmppEvent, Unit]
-{
-    def isDefinedAt(v: XmppEvent) = false
-    def apply(v: XmppEvent) : Unit = {}
-}
 
+//########################################################################
+//### class XmppClient
+//########################################################################
 class XmppClient(
-    val host: String     = "jabber.org",
-    val port: Int        = 5222,
-    val jid: String      = "user@host",
-    val pass: String     = "nopass",
-    val resource: String = "",
-    val debug: Boolean  = false, 
+    val host: String,
+    val port: Int,    
+    val user: String,
+    val domain: String,
+    val resource: String,
+    val pass: String,
+    val debug: Boolean, 
     val callbacks: PartialFunction[XmppEvent, Unit] = XmppNullPF
     )
 {
+    val jid = user + "@" + domain + "/" + resource
     
     def trace(msg: String) =
         println("XmppClient: " + msg)
@@ -220,12 +192,6 @@ class XmppClient(
     def status(msg: String) =
         post(XmppStatus(msg))
         
-    private val words = jid.split("@")
-    
-    val user = words(0)
-    val domain = words(1)
-
-
     private val defaultCallbacks : PartialFunction[XmppEvent, Unit] =
         {
         case XmppConnected(user, host) =>
@@ -241,7 +207,120 @@ class XmppClient(
     private def post(evt: XmppEvent) =
         handler(evt)
         
+    var idCtr = 0
+    def id =
+        {
+        idCtr += 1
+        "id_" + idCtr.toString
+        }
+        
     private val conn = new XmppTcpConnection(host, port)
+    
+    private def readStreamHead : Option[Element] =
+        {
+        val pushParser = new XmlPush(1, "</stream:stream>", "", true)
+        var res : Option[Element] = None
+        while (res.isEmpty)
+            {
+            var ch = conn.read
+            if (ch < 0)
+                return None
+            res = pushParser.append(ch)
+            }
+        res            
+        }
+        
+    private def readStanza : Option[Element] =
+        {
+        val pushParser = new XmlPush(addNS = "xmlns:stream='http://etherx.jabber.org/streams'")
+        var res : Option[Element] = None
+        while (res.isEmpty)
+            {
+            var ch = conn.read
+            if (ch < 0)
+                return None
+            res = pushParser.append(ch)
+            }
+        res            
+        }
+        
+    private def toHex(arr: Array[Byte]) : String =
+        arr.map(b=> "%02x".format(b & 255)).mkString
+        
+    private def md5hash(arr: Array[Byte]) : Array[Byte] =
+        java.security.MessageDigest.getInstance("MD5").digest(arr)
+        
+    private def toBase64(arr: Array[Byte]) : String =
+        javax.xml.bind.DatatypeConverter.printBase64Binary(arr)
+    
+    private def fromBase64(b64: String) : Array[Byte] =
+        javax.xml.bind.DatatypeConverter.parseBase64Binary(b64)
+        
+    private def parseEncoded(b64: String) : Map[String, String] =
+        {
+        val raw = new String(fromBase64(b64))
+        //trace("raw: " + raw)
+        val pairs = raw.split(",")
+        val tuples = pairs.map(s =>
+            {
+            val kv = s.trim.split("=")
+            var v = kv(1).trim
+            if (v.startsWith("\""))
+                v = v.substring(1)
+            if (v.endsWith("\""))
+                v = v.substring(0, v.size-1)
+            (kv(0).trim, v)
+            })
+        tuples.toMap.withDefaultValue("")
+        }
+        
+    private def md5auth(challenge: String) : String =
+        {
+        val enc = "UTF-8"
+        val props = parseEncoded(challenge)
+        trace("props: " + props)  
+        val nonce = props("nonce")
+        val realm = props("realm")
+        val qop   = props("qop")
+        val nc = "00000001"
+        val cnonce = "abjqwerty"
+        val x = user + ":" + realm + ":" + pass
+        val y = md5hash(x.getBytes(enc))
+        val a1 = y ++ ((":" + nonce + ":" + cnonce).getBytes(enc))
+        val a2 = ("AUTHENTICATE:xmpp/" + realm).getBytes(enc)
+        val kd = toHex(md5hash(a1)) + ":" + nonce + ":" + nc +
+             ":" + cnonce + ":" + qop + ":" + toHex(md5hash(a2))
+        val z = toHex(md5hash(kd.getBytes(enc)))
+
+        val rs = ("username=\"%s\",realm=\"%s\",nonce=\"%s\",cnonce=\"%s\","+
+            "nc=%s,qop=%s,digest-uri=\"xmpp/%s\",response=%s,charset=utf-8").format(
+            user,realm,nonce,cnonce,nc,qop,realm,z)
+        trace("rs: " + rs)
+        val tag = "<response xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>" +
+               toBase64(rs.getBytes(enc)) + "</response>"
+        trace("resp: " + tag)
+        tag
+        }
+        
+    class Receiver extends Thread
+        {
+        var cont = false
+        override def run =
+            {
+            cont = true
+            while (cont)
+                {
+                var elem = readStanza
+                if (elem.isDefined)
+                    trace("rcvr: " + elem)
+                }
+            }
+            
+        def abort =
+            cont = false
+        }
+        
+    private var receiver = new Receiver
     
     private def doHandshake : Boolean =
         {
@@ -251,9 +330,9 @@ class XmppClient(
                 "version='1.0'>"
         conn.write(startmsg)  
         trace("msg: " + startmsg)
-        var elem = conn.readStreamHead
+        var elem = readStreamHead
         trace("elem: " + elem) 
-        elem = conn.readStanza
+        elem = readStanza
         trace("elem: " + elem) 
         val starttls = (elem.get \\ "starttls").size > 0
         trace("starttls: " + starttls)
@@ -262,7 +341,7 @@ class XmppClient(
         if (starttls)
             {
             conn.write("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
-            elem = conn.readStanza
+            elem = readStanza
             trace("elem: " + elem)
             if (elem.get.name == "proceed")
                 {
@@ -274,15 +353,37 @@ class XmppClient(
                 trace("starttls ok")
                 trace("msg: " + startmsg)
                 conn.write(startmsg)  
-                elem = conn.readStreamHead
+                elem = readStreamHead
                 trace("elem: " + elem) 
-                val authmsg = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
-                conn.write(authmsg)
-                elem = conn.readStanza
-                trace("elem: " + elem)
+                elem = readStanza
+                trace("elem: " + elem) 
                 mechanisms = (elem.get \\ "mechanism").map(_.value)
                 trace("mech: " + mechanisms)
-                    
+                val authmsg = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
+                conn.write(authmsg)
+                elem = readStanza
+                trace("elem: " + elem)
+                val encoded = elem.get.value
+                trace("enc: " + encoded)  
+                conn.write(md5auth(encoded))
+                elem = readStanza
+                trace("elem: " + elem)
+                conn.write(startmsg)
+                elem = readStreamHead
+                trace("elem: " + elem)
+                elem = readStanza
+                trace("elem: " + elem)
+                conn.write("<iq type='set' id='" + id + "'>" +
+                     "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>" +
+                     "<resource>" + resource + "</resource></bind></iq>")
+                elem = readStanza
+                trace("elem: " + elem)
+                conn.write("<iq type='set' id='" + id + "'>" +
+                     "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>")
+                elem = readStanza
+                trace("elem: " + elem)
+                
+                receiver.start
                 }
             else
                 {
@@ -315,6 +416,32 @@ class XmppClient(
 }
 
 
+object XmppNullPF extends PartialFunction[XmppEvent, Unit]
+{
+    def isDefinedAt(v: XmppEvent) = false
+    def apply(v: XmppEvent) : Unit = {}
+}
+
+
+
+object XmppClient
+{
+    val jidRegex = "^(?:([^@/<>'\"]+)@)?([^@/<>'\"]+)(?:/([^<>'\"]*))?$".r
+
+
+    def apply(host: String = "host",
+              port: Int = 5222, 
+              jid: String = "user@example.com/hello",
+              pass: String = "nopass",
+              debug: Boolean = false,
+              callbacks: PartialFunction[XmppEvent, Unit] = XmppNullPF
+              ) : XmppClient =
+        {
+        val jidRegex(user, domain, resource) = jid
+        new XmppClient(host, port, user, domain, resource, pass, debug, callbacks)
+        }
+
+}
 
 
 
@@ -323,7 +450,7 @@ object XmppClientTest
 
     def doTest =
         {
-        val cli = new XmppClient(debug=true, host="jabber.org", jid="user@jabber.org", pass="pass")
+        val cli = XmppClient(debug=true, host="129-7-67-40.dhcp.uh.edu", jid="ishmal@129-7-67-40.dhcp.uh.edu/scala", pass="not known")
         cli.connect
         }
 

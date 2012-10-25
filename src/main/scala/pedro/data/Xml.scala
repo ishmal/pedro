@@ -326,51 +326,6 @@ object Element
 
 
 
-/**
- * Handler for the Java SAX parser's 3 callbacks
- */ 
-class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
-{
-    var root : Option[Element] = None
-    
-    //Things to save on the stack for each element
-    class StackItem
-        {
-        val attrs    = scala.collection.mutable.Map[String, Attribute]()
-        val children = scala.collection.mutable.ListBuffer[Element]()
-        val buf      = new StringBuilder        
-        }
-    val stack = scala.collection.mutable.Stack[StackItem]()
-
-    override def startElement(uri: String, localName: String, qName: String,
-                     jattrs: org.xml.sax.Attributes) =
-        {
-        val item = new StackItem
-        for (i <- 0 until jattrs.getLength)
-            {
-            val key = jattrs.getLocalName(i)
-            item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
-            }
-        stack.push(item)        
-        }
-
-    override def characters(ch: Array[Char], start: Int, length: Int) =
-        stack.top.buf.appendAll(ch, start, length)
-
-    override def endElement(uri: String, localName: String, qName: String) =
-        {
-        val item = stack.pop
-        val elem = Element(
-            name       = localName, 
-            attributes = item.attrs.toMap,
-            children   = item.children.toList,
-            value      = item.buf.toString.trim
-            )
-        root = Some(elem)
-        if (stack.size > 0)
-            stack.top.children += elem
-        }
-}
 
 
 /**
@@ -378,6 +333,52 @@ class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
  */ 
 class XmlReader
 {
+    /**
+     * Handler for the Java SAX parser's 3 callbacks
+     */ 
+    class Handler(parent: XmlReader) extends org.xml.sax.helpers.DefaultHandler
+        {
+        var root : Option[Element] = None
+        
+        //Things to save on the stack for each element
+        class StackItem
+            {
+            val attrs    = scala.collection.mutable.Map[String, Attribute]()
+            val children = scala.collection.mutable.ListBuffer[Element]()
+            val buf      = new StringBuilder        
+            }
+        val stack = scala.collection.mutable.Stack[StackItem]()
+    
+        override def startElement(uri: String, localName: String, qName: String,
+                         jattrs: org.xml.sax.Attributes) =
+            {
+            val item = new StackItem
+            for (i <- 0 until jattrs.getLength)
+                {
+                val key = jattrs.getLocalName(i)
+                item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
+                }
+            stack.push(item)        
+            }
+    
+        override def characters(ch: Array[Char], start: Int, length: Int) =
+            stack.top.buf.appendAll(ch, start, length)
+    
+        override def endElement(uri: String, localName: String, qName: String) =
+            {
+            val item = stack.pop
+            val elem = Element(
+                name       = localName, 
+                attributes = item.attrs.toMap,
+                children   = item.children.toList,
+                value      = item.buf.toString.trim
+                )
+            root = Some(elem)
+            if (stack.size > 0)
+                stack.top.children += elem
+            }
+        }
+
     def parse(str: String) : Option[Element] =
         {
         val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
@@ -445,20 +446,44 @@ object XmlReader
  * it can be adjusted according to needs.  So either you can read one character
  * at a time until you have an Element, or simply read characters and allow
  * a callback to be invoked.     
+ * Examples:
+ *
+ * If you are expecting balanced XML like <a><b></b></a> and want to parse it all,
+ * then simply use:
+ *     new XmlPush
+ *
+ * If you are expecting <stream:stream {xmlns and version info}> and want to catch it then use:
+ *     new XmlPush(1, "</stream:stream>", "", true)
+ *
+ * If you are expecting <stream:features>stuff</stream:features> , you will need the "stream"
+ *    prefix to be declared.  Do it like this:
+ *     new XmlPush(addNS = "xmlns:stream='http://etherx.jabber.org/streams'")
+ *
+ * @param level At what depth do we want to trigger parsing and returning a value?
+ * @param suffix this is what would be requred to close the xml properly if level > 0
+ * @param addNS since we are processing xml in chunks, it is sometimes possible that
+ *    a namespace prefix might be used that is declared elsewhere.  This allows you to
+ *    have that little bit extra information added to the outermost open tag to make
+ *    the parser happy.  Specify this with length>0 to use it.
+ * @param onOpenTag do we want to trigger parsing when the open tag is completed at the
+ *   desired depth, or when the close tag is completed?
  */ 
-class XmlPush(level: Int = 0, suffix: String = "", onOpenTag : Boolean = false) extends pedro.util.Logged
+class XmlPush(level: Int = 0, suffix: String = "",
+     addNS: String = "", onOpenTag : Boolean = false) extends pedro.util.Logged
 {
     var depth        = 0      // how nested in tags?
     var inComment    = false  // we are in <!-- -->
-    var commentDelim = 0
     var inTag        = false  // we are in <name> or </name>
     var slashSeen    = false  // / seen in </name>
-    var querySeen    = false  // <?
+    var ignorable    = false  // <? stuff ?>
     var quoteChar    = 0      // " or ''
     var textSeen     = false  // seen text inside a tag
     var trivialTag   = false  // if it is <name/>
     
+    var firstTag     = true
+    
     val buf = new StringBuilder
+    var count = 0
 
     def out(str: String) : Option[Element] =
         {
@@ -466,65 +491,74 @@ class XmlPush(level: Int = 0, suffix: String = "", onOpenTag : Boolean = false) 
         val elem = (new XmlReader).parse(str)
         elem
         }
-
-
+        
+        
     /**
      *  This is the state machine.  Please understand this
      *  before modifying.     
      */
     def append(chr: Int) : Option[Element] =
         {
-        val ch = chr.asInstanceOf[Char]
-        print(ch)
+        if (chr < 0)
+            return None
+        val ch = chr.toChar
+        //print(ch)
+        count += 1
         buf.append(ch)
         if (inComment)
             {
-            if (ch == '-' && commentDelim==0)
-                commentDelim = 1
-            else if (ch == '-' && commentDelim==1)
-                commentDelim = 2
-            else if (ch == '>' && commentDelim==2)
-                { inComment = false ; commentDelim = 0}
-            else
-                commentDelim = 0
+            if (count >= 3 && buf.lastIndexOf("-->") == count-3)
+                {
+                inComment = false
+                }
             }
         else
             {
-            if (ch == '<')
-                { if (depth==level-1) {buf.clear; buf.append('<')} ; commentDelim = 1}
-            else if (ch == '!' && commentDelim == 1)
-                commentDelim = 2
-            else if (ch == '-' && commentDelim == 2)
-                commentDelim = 3
-            else if (ch == '-' && commentDelim == 3)
-                { inComment = true ; commentDelim = 0 }
+            if (count >= 4 && buf.lastIndexOf("<!--") == count-4)
+                {
+                inComment = true
+                }
+            else if (ch == '<')
+                { //do a reset for the new tag
+                inTag      = true
+                slashSeen  = false
+                ignorable  = false
+                quoteChar  = 0
+                textSeen   = false
+                trivialTag = false
+                }
             else if (ch == '>')
                 {
                 if (!inTag)  //unescaped '>' in pcdata? horror
+                    {//todo:  report error?
                     return None
-                inTag = false
-                if (!trivialTag && !querySeen)
+                    }
+                
+                if (firstTag && !ignorable && addNS.length > 0)
                     {
-                    if (slashSeen)
-                        {
-                        depth -= 1
-                        println("depth: " + depth)
-                        if (depth < level && !querySeen && !onOpenTag)
-                            {
-                            val res = buf.append(suffix).toString
-                            return out(res)
-                            }
-                        }
-                    else 
-                        {
-                        depth += 1 
-                        println("depth: " + depth)
-                        if (depth >= level && !querySeen && onOpenTag)
-                            {
-                            val res = buf.append(suffix).toString
-                            return out(res)
-                            }
-                        }
+                    var pos = if (trivialTag) buf.lastIndexOf("/") else count-1
+                    buf.insert(pos, " " + addNS)
+                    firstTag = false
+                    }
+
+                inTag = false
+                if (trivialTag || ignorable)
+                    {//no incr or decr
+                    }
+                else if (slashSeen)//close tag
+                    depth -= 1
+                else
+                    depth += 1
+                //println("depth: " + depth)
+                if (depth <= level && !onOpenTag)
+                    {
+                    val res = buf.append(suffix).toString
+                    return out(res)
+                    }
+                else if (depth >= level && onOpenTag)
+                    {
+                    val res = buf.append(suffix).toString
+                    return out(res)
                     }
                 }
             else if (ch == '/')
@@ -539,19 +573,18 @@ class XmlPush(level: Int = 0, suffix: String = "", onOpenTag : Boolean = false) 
             else if (ch == '?')
                 {
                 if (inTag && quoteChar == 0)
-                    querySeen = true
+                    ignorable = true
                 }
             else if (ch == '"' || ch == '\'')
                 {
                 if (inTag)
-                    if (quoteChar == 0)
+                    if (quoteChar == 0) //open quote
                         quoteChar = ch
-                    else if (quoteChar == ch)
+                    else if (quoteChar == ch) //close quote match the open?
                         quoteChar = 0
                 }
             else
                 {
-                commentDelim = 0
                 if (inTag && quoteChar == 0 && !ch.isWhitespace)
                     textSeen = true
                 }
@@ -561,4 +594,121 @@ class XmlPush(level: Int = 0, suffix: String = "", onOpenTag : Boolean = false) 
         }
 
 }
+
+class XmlPush2
+{
+
+    /**
+     * Handler for the Java SAX parser's 3 callbacks
+     */ 
+    class Handler extends org.xml.sax.helpers.DefaultHandler
+        {
+        var root : Option[Element] = None
+        
+        //Things to save on the stack for each element
+        class StackItem
+            {
+            val attrs    = scala.collection.mutable.Map[String, Attribute]()
+            val children = scala.collection.mutable.ListBuffer[Element]()
+            val buf      = new StringBuilder        
+            }
+        val stack = scala.collection.mutable.Stack[StackItem]()
+    
+        override def startElement(uri: String, localName: String, qName: String,
+                         jattrs: org.xml.sax.Attributes) =
+            {
+            val item = new StackItem
+            for (i <- 0 until jattrs.getLength)
+                {
+                val key = jattrs.getLocalName(i)
+                item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
+                }
+            stack.push(item)        
+            }
+    
+        override def characters(ch: Array[Char], start: Int, length: Int) =
+            stack.top.buf.appendAll(ch, start, length)
+    
+        override def endElement(uri: String, localName: String, qName: String) =
+            {
+            val item = stack.pop
+            val elem = Element(
+                name       = localName, 
+                attributes = item.attrs.toMap,
+                children   = item.children.toList,
+                value      = item.buf.toString.trim
+                )
+            root = Some(elem)
+            if (stack.size > 0)
+                stack.top.children += elem
+            }
+        }
+
+    var outs = new java.io.PipedOutputStream
+    var ins = new java.io.PipedInputStream(outs)
+    
+    class Receiver extends Thread
+        {
+        override def run =
+            {
+            val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
+            parser.setContentHandler(new Handler)
+            try
+                {
+                parser.parse(new org.xml.sax.InputSource(ins))
+                }
+            catch 
+                {
+                case e: Exception =>
+                }
+            }
+        }
+    private var receiver = new Receiver
+
+
+    def append(ch: Int) =
+        {
+        outs.write(ch)
+        outs.flush
+        }
+        
+    def start =
+        {
+        outs = new java.io.PipedOutputStream
+        ins = new java.io.PipedInputStream(outs)
+        receiver = new Receiver
+        receiver.start
+        }
+        
+    def close =
+        {
+        ins.close
+        outs.close
+        }
+           
+}
+
+
+object XmlPush2Test
+{
+
+    def test =
+        {
+        val p = new XmlPush2
+        
+        }
+        
+        
+    def main(argv: Array[String]) : Unit =
+        {
+        test
+        }
+
+
+
+
+
+}
+
+
 
