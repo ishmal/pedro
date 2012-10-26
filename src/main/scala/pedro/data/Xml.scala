@@ -595,53 +595,67 @@ class XmlPush(level: Int = 0, suffix: String = "",
 
 }
 
-class XmlPush2
+class XmlPush2 extends org.xml.sax.helpers.DefaultHandler
 {
+    self =>
+
+    //Things to save on the stack for each element
+    class StackItem
+        {
+        val attrs    = scala.collection.mutable.Map[String, Attribute]()
+        val children = scala.collection.mutable.ListBuffer[Element]()
+        val buf      = new StringBuilder        
+        }
+    val stack = scala.collection.mutable.Stack[StackItem]()
 
     /**
-     * Handler for the Java SAX parser's 3 callbacks
-     */ 
-    class Handler extends org.xml.sax.helpers.DefaultHandler
+     * from sax Handler
+     */
+    override def startElement(uri: String, localName: String, qName: String,
+                     jattrs: org.xml.sax.Attributes) =
         {
-        var root : Option[Element] = None
-        
-        //Things to save on the stack for each element
-        class StackItem
+        val item = new StackItem
+        for (i <- 0 until jattrs.getLength)
             {
-            val attrs    = scala.collection.mutable.Map[String, Attribute]()
-            val children = scala.collection.mutable.ListBuffer[Element]()
-            val buf      = new StringBuilder        
+            val key = jattrs.getLocalName(i)
+            item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
-        val stack = scala.collection.mutable.Stack[StackItem]()
+        stack.push(item)        
+        }
+
+    /**
+     * from sax Handler
+     */
+    override def characters(ch: Array[Char], start: Int, length: Int) =
+        stack.top.buf.appendAll(ch, start, length)
+
+    /**
+     * from sax Handler
+     */
+    override def endElement(uri: String, localName: String, qName: String) =
+        {
+        val item = stack.pop
+        val elem = Element(
+            name       = localName, 
+            attributes = item.attrs.toMap,
+            children   = item.children.toList,
+            value      = item.buf.toString.trim
+            )
+        if (!process(elem) && stack.size > 0)
+            stack.top.children += elem
+        }
     
-        override def startElement(uri: String, localName: String, qName: String,
-                         jattrs: org.xml.sax.Attributes) =
+    def depth = stack.size
+    
+    def process(elem: Element) : Boolean =
+        {
+        if (depth == 1)
             {
-            val item = new StackItem
-            for (i <- 0 until jattrs.getLength)
-                {
-                val key = jattrs.getLocalName(i)
-                item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
-                }
-            stack.push(item)        
+            println("elem:" + elem)
+            true
             }
-    
-        override def characters(ch: Array[Char], start: Int, length: Int) =
-            stack.top.buf.appendAll(ch, start, length)
-    
-        override def endElement(uri: String, localName: String, qName: String) =
-            {
-            val item = stack.pop
-            val elem = Element(
-                name       = localName, 
-                attributes = item.attrs.toMap,
-                children   = item.children.toList,
-                value      = item.buf.toString.trim
-                )
-            root = Some(elem)
-            if (stack.size > 0)
-                stack.top.children += elem
-            }
+        else
+            false
         }
 
     var outs = new java.io.PipedOutputStream
@@ -652,7 +666,7 @@ class XmlPush2
         override def run =
             {
             val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
-            parser.setContentHandler(new Handler)
+            parser.setContentHandler(self)
             try
                 {
                 parser.parse(new org.xml.sax.InputSource(ins))
@@ -680,7 +694,7 @@ class XmlPush2
         receiver.start
         }
         
-    def close =
+    def stop =
         {
         ins.close
         outs.close
@@ -695,6 +709,11 @@ object XmlPush2Test
     def test =
         {
         val p = new XmlPush2
+        val xml = "<root><a/><b/><c/></root>".getBytes("UTF-8").map(_.toInt & 255)
+        p.start
+        for (i <- xml)
+            p.append(i)
+        p.stop
         
         }
         
