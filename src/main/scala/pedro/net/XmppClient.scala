@@ -24,7 +24,7 @@
  */
 package pedro.net
 
-import pedro.data.{XmlPush, Element}
+import pedro.data.{XmlPush2, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
@@ -66,6 +66,7 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         try
             { 
             sock = new java.net.Socket(host, port) 
+            sock.setSoTimeout(100) //to allow us to kill reader threads
             attachStreams
             true
             }
@@ -182,13 +183,10 @@ class XmppClient(
     val pass: String,
     val debug: Boolean, 
     val callbacks: PartialFunction[XmppEvent, Unit] = XmppNullPF
-    )
+    ) extends pedro.util.Logged
 {
     val jid = user + "@" + domain + "/" + resource
     
-    def trace(msg: String) =
-        println("XmppClient: " + msg)
-
     def status(msg: String) =
         post(XmppStatus(msg))
         
@@ -207,43 +205,11 @@ class XmppClient(
     private def post(evt: XmppEvent) =
         handler(evt)
         
-    var idCtr = 0
-    def id =
-        {
-        idCtr += 1
-        "id_" + idCtr.toString
-        }
-        
-    private val conn = new XmppTcpConnection(host, port)
     
-    private def readStreamHead : Option[Element] =
-        {
-        val pushParser = new XmlPush(1, "</stream:stream>", "", true)
-        var res : Option[Element] = None
-        while (res.isEmpty)
-            {
-            var ch = conn.read
-            if (ch < 0)
-                return None
-            res = pushParser.append(ch)
-            }
-        res            
-        }
-        
-    private def readStanza : Option[Element] =
-        {
-        val pushParser = new XmlPush(addNS = "xmlns:stream='http://etherx.jabber.org/streams'")
-        var res : Option[Element] = None
-        while (res.isEmpty)
-            {
-            var ch = conn.read
-            if (ch < 0)
-                return None
-            res = pushParser.append(ch)
-            }
-        res            
-        }
-        
+    //########################################################
+    //# U T I L I T Y
+    //########################################################
+
     private def toHex(arr: Array[Byte]) : String =
         arr.map(b=> "%02x".format(b & 255)).mkString
         
@@ -274,7 +240,14 @@ class XmppClient(
         tuples.toMap.withDefaultValue("")
         }
         
-    private def md5auth(challenge: String) : String =
+    private def xmlStr(s: String) : String =
+        pedro.data.Xml.xmlStr(s)
+
+    //########################################################
+    //# A U T H
+    //########################################################
+
+    private def authMd5(challenge: String) : String =
         {
         val enc = "UTF-8"
         val props = parseEncoded(challenge)
@@ -298,118 +271,283 @@ class XmppClient(
         trace("rs: " + rs)
         val tag = "<response xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>" +
                toBase64(rs.getBytes(enc)) + "</response>"
-        trace("resp: " + tag)
         tag
         }
         
-    class Receiver extends Thread
+    private def authPlain : String =
         {
-        var cont = false
-        override def run =
-            {
-            cont = true
-            while (cont)
-                {
-                var elem = readStanza
-                if (elem.isDefined)
-                    trace("rcvr: " + elem)
-                }
-            }
-            
-        def abort =
-            cont = false
+        val clear = "\0" + user + "\0" + pass
+        val tag = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' " +
+            "mechanism='PLAIN'>" + toBase64(clear.getBytes("UTF-8")) + "</auth>"
+        tag
+        }
+                
+    var idCtr = 0
+    def id =
+        {
+        idCtr += 1
+        "id_" + idCtr.toString
         }
         
-    private var receiver = new Receiver
-    
-    private def doHandshake : Boolean =
-        {
-        val startmsg =
+    private val streamStartMsg =
                 "<stream:stream to='" + domain + "' xmlns='jabber:client' " +
                 "xmlns:stream='http://etherx.jabber.org/streams' "+
                 "version='1.0'>"
-        conn.write(startmsg)  
-        trace("msg: " + startmsg)
-        var elem = readStreamHead
-        trace("elem: " + elem) 
-        elem = readStanza
-        trace("elem: " + elem) 
-        val starttls = (elem.get \\ "starttls").size > 0
-        trace("starttls: " + starttls)
-        var mechanisms = (elem.get \\ "mechanism").map(_.value)
-        trace("mech: " + mechanisms)
-        if (starttls)
+
+    private val conn = new XmppTcpConnection(host, port)
+    
+    def write(msg: String) : Boolean =
+        {
+        trace("write: " + msg)
+        conn.write(msg)
+        }
+        
+    //###############################################
+    //# I Q
+    //###############################################
+    
+    private def iqReceive(elem: Element) =
+        {
+        val from = elem("from")
+        val to   = elem("to")
+        if ((elem \\ "ping").size > 0)
             {
-            conn.write("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
-            elem = readStanza
-            trace("elem: " + elem)
-            if (elem.get.name == "proceed")
-                {
-                if (!conn.goSSL)
+            val msg = "<iq from='" + to + "' to='" + from + "' id='" + id +"' type='result'/>"
+            write(msg)
+            }
+        if ((elem \\ "bind").size > 0)
+            {
+            val jid = (elem \ "bind" \ "jid").text
+            trace("jid: " + jid)
+            }
+        }
+    
+    //###############################################
+    //# P R E S E N C E
+    //###############################################
+    
+    private def presenceReceive(elem: Element) =
+        {
+        val from = elem("from")
+        val to   = elem("to")
+        }
+    
+    //###############################################
+    //# M E S S A G E
+    //###############################################
+    
+    private def messageReceive(elem: Element) =
+        {
+        val from = elem("from")
+        val to   = elem("to")
+        val body = (elem \ "body").text
+        trace("Got message! : " + from + " : " + body)
+        }
+        
+    def messageSend(to: String, msg: String) =
+        {
+        val tag = "<message to='" + to + "' type='chat' xml:lang='en'><body>" +
+            xmlStr(msg) + "</body></message>"
+        write(tag)
+        }
+    
+    //###############################################
+    //# E R R O R
+    //###############################################
+    
+    private def errorReceive(elem: Element) =
+        {
+        val from = elem("from")
+        val to   = elem("to")
+        }
+        
+        
+    
+    trait State
+    case object Start       extends State
+    case object StartTls    extends State
+    case object SslStart    extends State
+    case object Auth1       extends State
+    case object Auth2       extends State
+    case object Session     extends State
+    case object Connected   extends State
+    
+    private var state : State = Start
+    
+    
+    
+    private def receive(elem: Element) : Boolean =
+        {
+        println("state: " + state + "  elem: " + elem)
+        state match
+            {
+            case Start => 
+                val hastls = (elem \\ "starttls").size > 0
+                if (hastls)
                     {
-                    trace("starttls failed")
-                    return false
+                    state = StartTls
+                    write("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
                     }
-                trace("starttls ok")
-                trace("msg: " + startmsg)
-                conn.write(startmsg)  
-                elem = readStreamHead
-                trace("elem: " + elem) 
-                elem = readStanza
-                trace("elem: " + elem) 
-                mechanisms = (elem.get \\ "mechanism").map(_.value)
-                trace("mech: " + mechanisms)
-                val authmsg = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
-                conn.write(authmsg)
-                elem = readStanza
-                trace("elem: " + elem)
-                val encoded = elem.get.value
-                trace("enc: " + encoded)  
-                conn.write(md5auth(encoded))
-                elem = readStanza
-                trace("elem: " + elem)
-                conn.write(startmsg)
-                elem = readStreamHead
-                trace("elem: " + elem)
-                elem = readStanza
-                trace("elem: " + elem)
-                conn.write("<iq type='set' id='" + id + "'>" +
-                     "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>" +
-                     "<resource>" + resource + "</resource></bind></iq>")
-                elem = readStanza
-                trace("elem: " + elem)
-                conn.write("<iq type='set' id='" + id + "'>" +
-                     "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>")
-                elem = readStanza
-                trace("elem: " + elem)
-                
-                receiver.start
-                }
-            else
-                {
-                return false
-                }
+            case StartTls =>
+                if (elem.name == "proceed")
+                    {
+                    receiver.abort
+                    if (!conn.goSSL)
+                        {
+                        error("Could not perform STARTTLS")
+                        }
+                    receiver = new Receiver
+                    receiver.start
+                    trace("starttls ok")
+                    write(streamStartMsg)
+                    state = SslStart
+                    }
+            case SslStart =>
+                if (elem.name == "features")
+                    {
+                    val mechs = (elem \\ "mechanism").map(_.value).toSet
+                    if (mechs("DIGEST-MD5"))
+                        {
+                        write("<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>")
+                        }
+                    else if (mechs("PLAIN"))
+                        {
+                        write(authPlain)
+                        }
+                    else
+                        {
+                        //error!
+                        }
+                    state = Auth1
+                    }
+            case Auth1 =>
+                if (elem.name == "success")
+                    {
+                    state = Auth2
+                    receive(elem)
+                    }
+                else if (elem.name == "challenge")
+                    {
+                    write(authMd5(elem.value))
+                    state = Auth2
+                    }
+            case Auth2 =>
+            
+                if (elem.name == "success")
+                    {
+                    write(streamStartMsg)
+                    state = Session
+                    }
+            case Session =>
+                   if (elem.name == "features")
+                       {
+                       state = Connected
+                       if ((elem \\ "bind").size > 0)
+                           {
+                            write("<iq type='set' id='" + id + "'>" +
+                                "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>" +
+                                "<resource>" + resource + "</resource></bind></iq>")
+                           }
+                       if ((elem \\ "session").size > 0)
+                           {
+                            write("<iq type='set' id='" + id + "'>" +
+                                "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>")
+                           }
+                        state = Connected   
+                        }
+            case Connected =>
+                elem.name match
+                    {
+                    case "iq"       => iqReceive(elem)
+                    case "message"  => messageReceive(elem)
+                    case "error"    => errorReceive(elem)
+                    case "presence" => presenceReceive(elem)
+                    }
+                messageSend("ishmalius@gmail.com", "hello, there!")
             }
         true
         }
     
+    class XmppParser extends XmlPush2
+        {
+        override def process(elem: Element) : Boolean =
+            {
+            //println("ie: " + elem)
+            if (stack.top.name == "stream")
+                {
+                receive(elem)
+                true
+                }
+            else
+                false
+            }
+        }
+    
+    class Receiver extends Thread
+        {
+        var parser = new XmppParser
+        var cont = false
+        override def run =
+            {
+            parser.start
+            cont = true
+            while (cont)
+                {
+                try
+                    {
+                    var ch = conn.read
+                    if (ch < 0)
+                        {
+                        abort
+                        }
+                    else
+                        {
+                        print(ch.toChar)
+                        parser.append(ch)
+                        }
+                    }
+                catch
+                    {
+                    case e: java.net.SocketTimeoutException =>
+                    //we simply want the loop to iterate and maybe catch "cont" being false
+                    }
+                }
+            }
+            
+        def abort =
+            {
+            parser.stop
+            cont = false
+            Thread.sleep(200)
+            }
+        }
+    private var receiver = new Receiver
+    
+  
+        
         
         
     def connect : Boolean =
         {
+        state = Start
         if (!conn.open)
             {
             false
             }
         else
             {
-            doHandshake
+            receiver.start
+            write(streamStartMsg)
+            true
             }
         }
         
     def disconnect : Boolean =
         {
+        state = Start
         conn.close
+        receiver.abort
+        true
         }
     
 
@@ -450,7 +588,12 @@ object XmppClientTest
 
     def doTest =
         {
-        val cli = XmppClient(debug=true, host="129-7-67-40.dhcp.uh.edu", jid="ishmal@129-7-67-40.dhcp.uh.edu/scala", pass="not known")
+        /*
+        val host = "129-7-67-40.dhcp.uh.edu"
+        val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
+        val pass = "gotcha"
+        */
+        val cli = XmppClient(debug=true, host=host, jid=jid, pass=pass)
         cli.connect
         }
 
