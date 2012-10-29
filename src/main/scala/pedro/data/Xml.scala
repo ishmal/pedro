@@ -75,6 +75,7 @@ trait Node
 
 
 
+
 /**
  * Common trait for things that need to output Xml
  */ 
@@ -706,7 +707,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         receiver.start
         }
         
-    def stop =
+    def close =
         {
         running = false
         outs.close
@@ -740,7 +741,7 @@ object XmlPush2Test
         for (i <- xml)
             p.append(i)
         Thread.sleep(2000)
-        p.stop
+        p.close
         
         }
         
@@ -750,11 +751,135 @@ object XmlPush2Test
         test
         }
 
-
-
-
-
 }
 
+
+
+class XmlPush3 extends Thread
+{
+    private val outs = new java.io.PipedOutputStream
+    private val ins  = new java.io.PipedInputStream(outs)
+    
+    //Things to save on the stack for each element
+    class StackItem(val name: String, val attrs: Map[String, Attribute])
+        {
+        val children = scala.collection.mutable.ListBuffer[Element]()
+        val buf      = new StringBuilder        
+        }
+    val stack = scala.collection.mutable.Stack[StackItem]()
+    
+    //stax api does not use generics
+    private def getAttrs(iter: java.util.Iterator[_]) : Map[String, Attribute] =
+        {
+        val buf = scala.collection.mutable.Map[String, Attribute]()
+        while (iter.hasNext)
+            {
+            val jattr = iter.next.asInstanceOf[javax.xml.stream.events.Attribute]
+            val name = jattr.getName.toString
+            buf += name -> Attribute(name, jattr.getValue)
+            }
+        buf.toMap
+        }
+   
+    private var open = true
+    
+    override def run : Unit =
+        {
+        val inputFactory = javax.xml.stream.XMLInputFactory.newInstance
+        var rdr = new java.io.InputStreamReader(ins, "UTF-8")
+        val parser = inputFactory.createXMLEventReader(rdr)
+        while (open && parser.hasNext)
+            {
+            val evt = parser.nextEvent
+            if (evt.isStartElement)
+                {
+                val elem = evt.asStartElement
+                stack.push(new StackItem(elem.getName.toString, getAttrs(elem.getAttributes)))        
+                }
+            else if (evt.isCharacters)
+                {
+                stack.top.buf.append(evt.asCharacters.getData)
+                }
+            else if (evt.isEndElement)
+                {
+                val endElem = evt.asEndElement
+                val item = stack.pop
+                val elem = Element(
+                    name       = item.name, 
+                    attributes = item.attrs,
+                    children   = item.children.toList,
+                    value      = item.buf.toString.trim
+                    )
+                if (!process(elem) && stack.size > 0)
+                    stack.top.children += elem
+                }
+                
+            }
+        }
+
+    def depth = stack.size
+    
+    def process(elem: Element) : Boolean =
+        {
+        if (depth == 1)
+            {
+            println("elem:" + elem)
+            true
+            }
+        else
+            false
+        }
+        
+    def append(ch: Int) =
+        {
+        if (open)
+            {
+            outs.write(ch)
+            outs.flush
+            }
+        }
+        
+    def close =
+        {
+        open = false
+        outs.close
+        }
+    
+}
+
+
+
+object XmlPush3Test
+{
+
+    def test =
+        {
+        val p = new XmlPush3
+            {
+            override def process(elem: Element) : Boolean =
+                {
+                if (stack.size > 0 && stack.top.name == "root")
+                    {
+                    println("elem:" + elem)
+                    true
+                    }
+                else
+                    false
+                }
+            }
+
+        val xml = "<root><a/><b/><c/></root>".getBytes("UTF-8").map(_.toInt & 255)
+        for (i <- xml)
+            p.append(i)
+        p.start
+        }
+        
+        
+    def main(argv: Array[String]) : Unit =
+        {
+        test
+        }
+
+}
 
 
