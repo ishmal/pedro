@@ -516,7 +516,7 @@ class XmppClient(
             
         def abort =
             {
-            parser.stop
+            parser.close
             cont = false
             Thread.sleep(200)
             }
@@ -588,11 +588,11 @@ object XmppClientTest
 
     def doTest =
         {
-        /*
+        /**/
         val host = "129-7-67-40.dhcp.uh.edu"
         val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
         val pass = "gotcha"
-        */
+        /**/
         val cli = XmppClient(debug=true, host=host, jid=jid, pass=pass)
         cli.connect
         }

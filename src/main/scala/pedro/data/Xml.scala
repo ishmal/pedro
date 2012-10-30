@@ -757,8 +757,6 @@ object XmlPush2Test
 
 class XmlPush3 extends Thread
 {
-    private val outs = new java.io.PipedOutputStream
-    private val ins  = new java.io.PipedInputStream(outs)
     
     //Things to save on the stack for each element
     class StackItem(val name: String, val attrs: Map[String, Attribute])
@@ -780,15 +778,59 @@ class XmlPush3 extends Thread
             }
         buf.toMap
         }
-   
+    
     private var open = true
+   
+    class PStream extends java.io.InputStream
+        {
+        private val size = 32 * 1024
+        private val queue = Array.ofDim[Int](size)
+        private var head = 0
+        private var tail = 0
+        override def available =
+            {
+            var len = head - tail
+            if (len >= 0) len else size + len
+            }
+        private def incr(ptr: Int) : Int =
+            if (ptr >= size) 0 else ptr + 1
+    
+        def append(ch: Int) =
+            {
+            head = incr(head)
+            if (head == tail)
+                {} //throw something
+            queue(head) = ch
+            this.notify
+            }
+        
+        override def read : Int =
+            {
+            synchronized 
+                {
+                while (available == 0) wait
+                tail = incr(tail)
+                queue(tail)
+                }
+            }
+    
+            
+        override def close =
+            {
+            open = false
+            append(-1)
+            }
+        
+        }
+    
+    private val ins = new PStream
     
     override def run : Unit =
         {
         val inputFactory = javax.xml.stream.XMLInputFactory.newInstance
         var rdr = new java.io.InputStreamReader(ins, "UTF-8")
         val parser = inputFactory.createXMLEventReader(rdr)
-        while (open && parser.hasNext)
+        while (parser.hasNext)
             {
             val evt = parser.nextEvent
             if (evt.isStartElement)
@@ -830,20 +872,10 @@ class XmlPush3 extends Thread
             false
         }
         
-    def append(ch: Int) =
-        {
-        if (open)
-            {
-            outs.write(ch)
-            outs.flush
-            }
-        }
+    def append(ch: Int) = ins.append(ch)
         
-    def close =
-        {
-        open = false
-        outs.close
-        }
+    def close = ins.close
+
     
 }
 
