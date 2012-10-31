@@ -5,7 +5,7 @@
  *   Bob Jamison
  *
  * Copyright (C) 2010-2012 Bob Jamison
- * 
+ *
  *  This file is part of the Pedro library.
  *
  *  This library is free software; you can redistribute it and/or
@@ -31,11 +31,11 @@ import scala.collection.mutable.ListBuffer
 
 /**
  * The purpose of this file is to provide a small data-oriented parser for
- * applications. 
- * 
+ * applications.
+ *
  * This library is unsuitable for document processing.  Users should seek
  * a larger, more robust library for that.
- */      
+ */
 trait Node
 {
     val namespace : String
@@ -78,7 +78,7 @@ trait Node
 
 /**
  * Common trait for things that need to output Xml
- */ 
+ */
 trait XmlOutput
 {
     private val hex = "0123456789abcdef".toCharArray
@@ -102,7 +102,7 @@ trait XmlOutput
                  append(hex((ch >>  4)&0xf)).append(hex((ch      )&0xf))
             }
         buf.toString
-        }  
+        }
 }
 
 object Xml extends XmlOutput
@@ -110,7 +110,7 @@ object Xml extends XmlOutput
 /**
  * This is the result of a projection.  Note that it has the same API as Node,
  * so that these can be chained together.
- */  
+ */
 class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProxy[Node]
 {
     def \(path: String) : XpathResult =
@@ -140,10 +140,10 @@ class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProx
 
     def text : String =
         map(_.value).mkString
-    
+
     def elems : Seq[Element] =
         collect{ case n : Element => n }
-    
+
     def attrs : Seq[Attribute] =
         collect{ case n : Attribute => n }
 
@@ -155,7 +155,7 @@ class XpathResult(override val self: Seq[Node]) extends scala.collection.SeqProx
 
 /**
  * Attribute of an element.    name="value"
- */ 
+ */
 case class Attribute(
     val namespace : String = "",
     val prefix    : String = "",
@@ -166,7 +166,7 @@ case class Attribute(
 
 /**
  * XML Element.
- */ 
+ */
 case class Element(
     val namespace   : String = "",
     val prefix      : String = "",
@@ -186,7 +186,7 @@ case class Element(
         else
             ""
         }
-    
+
     override def \(path: String) : XpathResult =
         {
         if (path(0) == '@')
@@ -249,7 +249,7 @@ case class Element(
                 buf.append("/>\n")
             else
                 {
-                buf.append(">").append(xmlStr(elem.value))    
+                buf.append(">").append(xmlStr(elem.value))
                 if (elem.children.size > 0)
                     {
                     buf.append("\n")
@@ -269,21 +269,21 @@ case class Element(
 
 /**
  * Utilities to assist in DOM creation.
- */ 
+ */
 object Element
 {
     import java.lang.reflect.{Method,Modifier}
 
     //Cache our methods so that we do not need to scan every time
     private val cache = scala.collection.mutable.Map[Class[_], Map[String, Method]]()
-    
+
     /**
      * Generate an Xml Element tree representing a Product.
      * This is intended for serializing case classes.  We do not try
      * to serialize everything, only Products, sequences, and a set
      * of expected primitive values.
-     */           
-     /*        
+     */
+     /*
     def toXml(name: String, obj: Product) : Element =
         {
         def scan(clazz: Class[_]) : Map[String, Method] =
@@ -320,7 +320,7 @@ object Element
             new Element(name = name, attributes = attrs.toMap, children = children.toList)
             }
 
-         
+
         toElement(name, obj)
         }
         */
@@ -332,17 +332,17 @@ object Element
 
 /**
  * Parse an XML source and return an Element
- */ 
+ */
 class XmlReader extends org.xml.sax.helpers.DefaultHandler
 {
     var root : Option[Element] = None
-    
+
     //Things to save on the stack for each element
     class StackItem
         {
         val attrs    = scala.collection.mutable.Map[String, Attribute]()
         val children = scala.collection.mutable.ListBuffer[Element]()
-        val buf      = new StringBuilder        
+        val buf      = new StringBuilder
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
 
@@ -358,7 +358,7 @@ class XmlReader extends org.xml.sax.helpers.DefaultHandler
             val key = jattrs.getLocalName(i)
             item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
-        stack.push(item)        
+        stack.push(item)
         }
 
     /**
@@ -374,7 +374,7 @@ class XmlReader extends org.xml.sax.helpers.DefaultHandler
         {
         val item = stack.pop
         val elem = Element(
-            name       = localName, 
+            name       = localName,
             attributes = item.attrs.toMap,
             children   = item.children.toList,
             value      = item.buf.toString.trim
@@ -428,7 +428,7 @@ class XmlReader extends org.xml.sax.helpers.DefaultHandler
 
 /**
  * Simple object for parsing XML to an Element
- */ 
+ */
 object XmlReader
 {
     def parse(buf: String) : Option[Element] =
@@ -449,7 +449,7 @@ object XmlReader
  * has been completed.  Normally this is 1 for things like XMPP stanzas, but
  * it can be adjusted according to needs.  So either you can read one character
  * at a time until you have an Element, or simply read characters and allow
- * a callback to be invoked.     
+ * a callback to be invoked.
  * Examples:
  *
  * If you are expecting balanced XML like <a><b></b></a> and want to parse it all,
@@ -471,7 +471,7 @@ object XmlReader
  *    the parser happy.  Specify this with length>0 to use it.
  * @param onOpenTag do we want to trigger parsing when the open tag is completed at the
  *   desired depth, or when the close tag is completed?
- */ 
+ */
 class XmlPush(level: Int = 0, suffix: String = "",
      addNS: String = "", onOpenTag : Boolean = false) extends pedro.util.Logged
 {
@@ -483,9 +483,9 @@ class XmlPush(level: Int = 0, suffix: String = "",
     var quoteChar    = 0      // " or ''
     var textSeen     = false  // seen text inside a tag
     var trivialTag   = false  // if it is <name/>
-    
+
     var firstTag     = true
-    
+
     val buf = new StringBuilder
     var count = 0
 
@@ -495,11 +495,11 @@ class XmlPush(level: Int = 0, suffix: String = "",
         val elem = (new XmlReader).parse(str)
         elem
         }
-        
-        
+
+
     /**
      *  This is the state machine.  Please understand this
-     *  before modifying.     
+     *  before modifying.
      */
     def append(chr: Int) : Option[Element] =
         {
@@ -537,7 +537,7 @@ class XmlPush(level: Int = 0, suffix: String = "",
                     {//todo:  report error?
                     return None
                     }
-                
+
                 if (firstTag && !ignorable && addNS.length > 0)
                     {
                     var pos = if (trivialTag) buf.lastIndexOf("/") else count-1
@@ -608,7 +608,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         {
         val attrs    = scala.collection.mutable.Map[String, Attribute]()
         val children = scala.collection.mutable.ListBuffer[Element]()
-        val buf      = new StringBuilder        
+        val buf      = new StringBuilder
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
 
@@ -624,7 +624,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
             val key = jattrs.getLocalName(i)
             item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
-        stack.push(item)        
+        stack.push(item)
         }
 
     /**
@@ -640,7 +640,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         {
         val item = stack.pop
         val elem = Element(
-            name       = item.name, 
+            name       = item.name,
             attributes = item.attrs.toMap,
             children   = item.children.toList,
             value      = item.buf.toString.trim
@@ -648,9 +648,9 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         if (!process(elem) && stack.size > 0)
             stack.top.children += elem
         }
-        
+
     def depth = stack.size
-    
+
     def process(elem: Element) : Boolean =
         {
         if (depth == 1)
@@ -665,7 +665,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
     var outs = new java.io.PipedOutputStream
     var ins = new java.io.PipedInputStream(outs)
     var running = false
-    
+
     class Receiver extends Thread
         {
         override def run =
@@ -680,7 +680,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
                 src.setEncoding("UTF-8")
                 parser.parse(src)
                 }
-            catch 
+            catch
                 {
                 case e: Exception =>
                     trace("XmlPush: " + e)
@@ -698,7 +698,7 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
             outs.flush
             }
         }
-        
+
     def start =
         {
         outs = new java.io.PipedOutputStream
@@ -706,14 +706,14 @@ class XmlPush2 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         receiver = new Receiver
         receiver.start
         }
-        
+
     def close =
         {
         running = false
         outs.close
         //ins.close
         }
-           
+
 }
 
 
@@ -742,10 +742,10 @@ object XmlPush2Test
             p.append(i)
         Thread.sleep(2000)
         p.close
-        
+
         }
-        
-        
+
+
     def main(argv: Array[String]) : Unit =
         {
         test
@@ -763,7 +763,7 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         {
         val attrs    = scala.collection.mutable.Map[String, Attribute]()
         val children = scala.collection.mutable.ListBuffer[Element]()
-        val buf      = new StringBuilder        
+        val buf      = new StringBuilder
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
 
@@ -780,7 +780,7 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
             item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
         println("start:" + item.name)
-        stack.push(item)        
+        stack.push(item)
         }
 
     /**
@@ -796,7 +796,7 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         {
         val item = stack.pop
         val elem = Element(
-            name       = item.name, 
+            name       = item.name,
             attributes = item.attrs.toMap,
             children   = item.children.toList,
             value      = item.buf.toString.trim
@@ -804,9 +804,9 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
         if (!process(elem) && stack.size > 0)
             stack.top.children += elem
         }
-        
+
     def depth = stack.size
-    
+
     def process(elem: Element) : Boolean =
         {
         if (depth == 1)
@@ -820,7 +820,7 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
 
     val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
     parser.setContentHandler(this)
-    
+
     def parse(ins: java.io.InputStream) : Boolean =
         {
         try
@@ -837,7 +837,7 @@ class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
             false
             }
         }
-    
+
 }
 
 
@@ -865,8 +865,8 @@ object XmlPush3Test
 
         p.parse(new java.io.ByteArrayInputStream(xml.getBytes))
         }
-        
-        
+
+
     def main(argv: Array[String]) : Unit =
         {
         test
@@ -876,52 +876,52 @@ object XmlPush3Test
 
 
 
-class XmppParser(ins: java.io.Reader)
+class XmppParser
 {
 
    //Things to save on the stack for each element
-    class StackItem(val name: String)
+    class StackItem(val name: String, val attrs: Map[String, Attribute])
         {
-        val attrs    = scala.collection.mutable.Map[String, Attribute]()
         val children = scala.collection.mutable.ListBuffer[Element]()
-        val buf      = new StringBuilder        
+        val buf      = new StringBuilder
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
 
     /**
      * from sax ContentHandler
      */
-    override def startElement(name: String, attrs: Map[String, String]) =
+    def startElement(name: String, attrs: Map[String, String]) =
         {
-        val item = new StackItem(name, attrs.map(e=> Attribute(e._1, e._2).toMap))
-        println("start:" + item.name)
-        stack.push(item)        
+        val item = new StackItem(name, attrs.map(e=> e._1 -> Attribute(e._1, e._2)).toMap)
+        println("start:" + name)
+        stack.push(item)
         }
 
     /**
      * from sax ContentHandler
      */
-    override def characters(data: String) =
+    def characters(text: String) =
         stack.top.buf.append(text)
 
     /**
      * from sax ContentHandler
      */
-    override def endElement(name: String) =
+    def endElement(name: String) =
         {
-        val item = stack.pop
+        println("end:" + name)
+       val item = stack.pop
         val elem = Element(
-            name       = item.name, 
-            attributes = item.attrs.toMap,
+            name       = item.name,
+            attributes = item.attrs,
             children   = item.children.toList,
             value      = item.buf.toString.trim
             )
         if (!process(elem) && stack.size > 0)
             stack.top.children += elem
         }
-        
+
     def depth = stack.size
-    
+
     def process(elem: Element) : Boolean =
         {
         if (depth == 1)
@@ -985,7 +985,7 @@ class XmppParser(ins: java.io.Reader)
 
         var ch = get(reader)
 
-        var cont = true 
+        var cont = true
 
         while (cont && ch != EOF)
             {
@@ -1036,7 +1036,7 @@ class XmppParser(ins: java.io.Reader)
                       state = popState
                       tagName = sb.toString
                       sb.clear
-                      depth -= 0
+                      depth -= 1
                       if (depth <= 0)
                           state = DONE
                       endElement(tagName)
@@ -1128,8 +1128,7 @@ class XmppParser(ins: java.io.Reader)
                       etag.append(ch)
                       }
               case SINGLE_TAG =>
-                  if (tagName == null)
-                      tagName = sb.toString
+                  tagName = sb.toString
                   if (ch != '>')
                       error("Expected > for tag: <"+tagName+"/>")
                   startElement(tagName, attrs.toMap)
@@ -1149,8 +1148,7 @@ class XmppParser(ins: java.io.Reader)
               case OPEN_TAG =>
                   if (ch == '>')
                       {
-                      if (tagName == null)
-                          tagName = sb.toString
+                      tagName = sb.toString
                       sb.clear
                       depth += 1
                       startElement(tagName, attrs.toMap)
@@ -1181,7 +1179,7 @@ class XmppParser(ins: java.io.Reader)
                       tagName = sb.toString
                       sb.clear
                       state = IN_TAG
-                      } 
+                      }
                   else
                       {
                       sb.append(ch)
@@ -1261,7 +1259,7 @@ class XmppParser(ins: java.io.Reader)
                       state = popState
                       startElement(tagName, attrs.toMap)
                       depth += 1
-                      tagName = null
+                      tagName = ""
                       attrs.clear
                       }
                   else if(ch == '/')
@@ -1284,7 +1282,7 @@ class XmppParser(ins: java.io.Reader)
 
           if (state != DONE)
               {
-              error("missing end tag")
+              error("missing end tag: " + state)
               false
               }
           else
@@ -1299,6 +1297,9 @@ object XmppParserTest
 {
     def test =
         {
+        val xml = "<root><a/><b/><c/></root>"
+        val p = new XmppParser
+        p.parse(new java.io.StringReader(xml))
         }
 
     def main(argv: Array[String]) : Unit =
