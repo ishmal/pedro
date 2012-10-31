@@ -24,7 +24,7 @@
  */
 package pedro.net
 
-import pedro.data.{XmlPush2,XmlPush3, Element}
+import pedro.data.{XmlPush3, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
@@ -38,8 +38,7 @@ import javax.net.ssl.{SSLContext,SSLSocket,SSLSocketFactory,TrustManager,TrustMa
 trait XmppConnection
 {
     
-    
-    def read : Int
+    def inputStream : java.io.InputStream
     
 }
 
@@ -47,7 +46,6 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
 {
 
     private var sock = new java.net.Socket
-    var istr : Option[BufferedReader] = None
     private var ostr : Option[BufferedWriter] = None
 
     private def err(msg: String) =
@@ -57,7 +55,6 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         
     def attachStreams =
         {
-        istr = Some(new BufferedReader(new InputStreamReader(sock.getInputStream)))
         ostr = Some(new BufferedWriter(new OutputStreamWriter(sock.getOutputStream)))
         }
     
@@ -78,25 +75,16 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
             }
         }
         
+    def inputStream = sock.getInputStream
+        
     def close : Boolean =
         {
         sock.close
-        istr = None
         ostr = None
         true
         }
         
 
-    def read : Int =
-        {
-        if (istr.isEmpty)
-           -1
-        else
-            {
-            istr.get.read
-            }
-        }
-        
     def write(str: String) : Boolean =
         {
         if (ostr.isEmpty)
@@ -480,47 +468,57 @@ class XmppClient(
         true
         }
     
-    class XmppParser extends XmlPush2
-        {
-        override def process(elem: Element) : Boolean =
-            {
-            //println("ie: " + elem)
-            if (stack.size > 0 && stack.top.name == "stream")
-                {
-                receive(elem)
-                true
-                }
-            else
-                false
-            }
-        }
-    
+
     class Receiver extends Thread
         {
         var cont = false
-        var parser = new XmppParser
-        parser.start
+
+        class IStream(wrapped: java.io.InputStream) extends java.io.InputStream
+            {
+            override def read : Int =
+                {
+                var ret = 0
+                while (ret == 0)
+                    {
+                    try
+                        {
+                        ret = wrapped.read
+                        print(ret.toChar)
+                        }
+                    catch
+                        {
+                        case e: java.net.SocketTimeoutException =>
+                            {}
+                        case e: Exception =>
+                            cont = false
+                        }
+                    }
+                ret
+                }
+            }
+
         override def run =
             {
-            cont = true
-            while (cont)
+            var parser = new XmlPush3
                 {
-                try
+                override def process(elem: Element) : Boolean =
                     {
-                    val ch = conn.read
-                    parser.append(ch)
-                    }
-                catch
-                    {
-                    case e: java.net.SocketTimeoutException =>
-                    //we simply want the loop to iterate and maybe catch "cont" being false
+                    //println("ie: " + elem)
+                    if (stack.size > 0 && stack.top.name == "stream")
+                        {
+                        receive(elem)
+                        true
+                        }
+                    else
+                        false
                     }
                 }
+            parser.parse(new IStream(conn.inputStream))
             }
             
         def abort =
             {
-            parser.close
+            //parser.close
             cont = false
             Thread.sleep(200)
             }
@@ -591,11 +589,11 @@ object XmppClientTest
 
     def doTest =
         {
-        /*
+        /**/
         val host = "129-7-67-40.dhcp.uh.edu"
         val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
-        val pass = "good try.  next time"
-        */
+        val pass = "flamingo"
+        /**/
         val cli = XmppClient(debug=true, host=host, jid=jid, pass=pass)
         cli.connect
         }

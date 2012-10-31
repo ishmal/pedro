@@ -755,116 +755,56 @@ object XmlPush2Test
 
 
 
-class XmlPush3 extends Thread
+
+class XmlPush3 extends org.xml.sax.helpers.DefaultHandler with pedro.util.Logged
 {
-    
     //Things to save on the stack for each element
-    class StackItem(val name: String, val attrs: Map[String, Attribute])
+    class StackItem(val name: String)
         {
+        val attrs    = scala.collection.mutable.Map[String, Attribute]()
         val children = scala.collection.mutable.ListBuffer[Element]()
         val buf      = new StringBuilder        
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
-    
-    private var open = true
-   
-    class Stream extends java.io.InputStream
-        {
-        private var queue = scala.collection.immutable.Queue[Int]()
 
-        override def available =
-            queue.size
-            
-        private val monitor = new Object
-    
-        def write(ch: Int) =
-            {
-            monitor.synchronized
-                {
-                queue = queue.enqueue(ch)
-                monitor.notify
-                }
-            }
-        
-        override def read : Int =
-            {
-            if (open)
-                {
-                monitor.synchronized 
-                    {
-                    while (available == 0)
-                        monitor.wait
-                    val ch = queue.head
-                    queue = queue.tail
-                    print("ch:" + ch)
-                    ch
-                    }
-                }
-            else
-                {
-                -1
-                }
-            }
-    
-            
-        override def close =
-            {
-            open = false
-            write(-1)
-            }
-        
-        }
-    
-    private val ins = new Stream
-    
-    private var cont = false
-    
-    override def run : Unit =
+    /**
+     * from sax ContentHandler
+     */
+    override def startElement(uri: String, localName: String, qName: String,
+                     jattrs: org.xml.sax.Attributes) =
         {
-        val factory = javax.xml.stream.XMLInputFactory.newInstance
-        println("factory:" + factory.getClass.getName)
-        println("here a")
-        val parser = factory.createXMLStreamReader(ins, "UTF-8")
-        cont = true
-        println("here b")
-        while (cont && parser.hasNext)
+        val item = new StackItem(localName)
+        for (i <- 0 until jattrs.getLength)
             {
-            val evt = parser.next
-            println("evt:"+evt)
-            if (parser.isStartElement)
-                {
-                val name  = parser.getLocalName
-                val attrs = scala.collection.mutable.Map[String, Attribute]()
-                for (i <- 0 until parser.getAttributeCount)
-                    {
-                    val name = parser.getAttributeLocalName(i)
-                    val value = parser.getAttributeValue(i)
-                    attrs += name -> Attribute(name, value)
-                    }
-                println("start:" + name)
-                stack.push(new StackItem(name, attrs.toMap))        
-                }
-            else if (parser.isCharacters)
-                {
-                stack.top.buf.append(parser.getText)
-                }
-            else if (parser.isEndElement)
-                {
-                val item = stack.pop
-                println("end:"+item.name)
-                val elem = Element(
-                    name       = item.name, 
-                    attributes = item.attrs,
-                    children   = item.children.toList,
-                    value      = item.buf.toString.trim
-                    )
-                if (!process(elem) && stack.size > 0)
-                    stack.top.children += elem
-                }
-                
+            val key = jattrs.getLocalName(i)
+            item.attrs += key -> Attribute(name = key, value = jattrs.getValue(i))
             }
+        println("start:" + item.name)
+        stack.push(item)        
         }
 
+    /**
+     * from sax ContentHandler
+     */
+    override def characters(ch: Array[Char], start: Int, length: Int) =
+        stack.top.buf.appendAll(ch, start, length)
+
+    /**
+     * from sax ContentHandler
+     */
+    override def endElement(uri: String, localName: String, qName: String) =
+        {
+        val item = stack.pop
+        val elem = Element(
+            name       = item.name, 
+            attributes = item.attrs.toMap,
+            children   = item.children.toList,
+            value      = item.buf.toString.trim
+            )
+        if (!process(elem) && stack.size > 0)
+            stack.top.children += elem
+        }
+        
     def depth = stack.size
     
     def process(elem: Element) : Boolean =
@@ -877,26 +817,27 @@ class XmlPush3 extends Thread
         else
             false
         }
-        
-    def write(ch: Int) : Unit =
-        ins.write(ch)
-       
-    def write(arr: Array[Byte]) : Unit =
+
+    val parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader
+    parser.setContentHandler(this)
+    
+    def parse(ins: java.io.InputStream) : Boolean =
         {
-        for (b <- arr)
-            write(b.toInt)
-        } 
-        
-    def write(s: String) : Unit =
-        {
-        write(s.getBytes)
-        } 
-        
-    def close = 
-        {
-        ins.close
-        cont = false
-        }    
+        try
+            {
+            val rdr = new java.io.InputStreamReader(ins, "UTF-8")
+            val src = new org.xml.sax.InputSource(rdr)
+            src.setEncoding("UTF-8")
+            parser.parse(src)
+            true
+            }
+        catch
+            {
+            case e: Exception =>
+            false
+            }
+        }
+    
 }
 
 
@@ -906,6 +847,8 @@ object XmlPush3Test
 
     def test =
         {
+        val xml = "<root><a/><b/><c/></root>"
+
         val p = new XmlPush3
             {
             override def process(elem: Element) : Boolean =
@@ -920,26 +863,7 @@ object XmlPush3Test
                 }
             }
 
-        p.start
-        p.write("<?xml version='1.0'?>")
-        Thread.sleep(100)
-        print("header")
-        p.write("<root>")
-        Thread.sleep(100)
-        print("step 1")
-        p.write("<a/>")
-        Thread.sleep(100)
-        print("step 2")
-        p.write("<b/>")
-        Thread.sleep(100)
-        print("step 3")
-        p.write("<c/>")
-        Thread.sleep(100)
-        print("step 4")
-        p.write("</root>")
-        Thread.sleep(100)
-        print("step 5")
-        //p.close
+        p.parse(new java.io.ByteArrayInputStream(xml.getBytes))
         }
         
         
@@ -949,5 +873,440 @@ object XmlPush3Test
         }
 
 }
+
+
+
+class XmppParser(ins: java.io.Reader)
+{
+
+   //Things to save on the stack for each element
+    class StackItem(val name: String)
+        {
+        val attrs    = scala.collection.mutable.Map[String, Attribute]()
+        val children = scala.collection.mutable.ListBuffer[Element]()
+        val buf      = new StringBuilder        
+        }
+    val stack = scala.collection.mutable.Stack[StackItem]()
+
+    /**
+     * from sax ContentHandler
+     */
+    override def startElement(name: String, attrs: Map[String, String]) =
+        {
+        val item = new StackItem(name, attrs.map(e=> Attribute(e._1, e._2).toMap))
+        println("start:" + item.name)
+        stack.push(item)        
+        }
+
+    /**
+     * from sax ContentHandler
+     */
+    override def characters(data: String) =
+        stack.top.buf.append(text)
+
+    /**
+     * from sax ContentHandler
+     */
+    override def endElement(name: String) =
+        {
+        val item = stack.pop
+        val elem = Element(
+            name       = item.name, 
+            attributes = item.attrs.toMap,
+            children   = item.children.toList,
+            value      = item.buf.toString.trim
+            )
+        if (!process(elem) && stack.size > 0)
+            stack.top.children += elem
+        }
+        
+    def depth = stack.size
+    
+    def process(elem: Element) : Boolean =
+        {
+        if (depth == 1)
+            {
+            println("elem:" + elem)
+            true
+            }
+        else
+            false
+        }
+
+    trait State
+    case object TEXT        extends State
+    case object ENTITY      extends State
+    case object OPEN_TAG    extends State
+    case object CLOSE_TAG   extends State
+    case object START_TAG   extends State
+    case object ATTR_LVALUE extends State
+    case object ATTR_EQUAL  extends State
+    case object ATTR_RVALUE extends State
+    case object QUOTE       extends State
+    case object IN_TAG      extends State
+    case object SINGLE_TAG  extends State
+    case object COMMENT     extends State
+    case object DONE        extends State
+    case object DOCTYPE     extends State
+    case object PRE         extends State
+    case object CDATA       extends State
+
+    private val sstack = scala.collection.mutable.Stack[State]()
+
+    private def popState :  State =
+        if (sstack.size > 0) sstack.pop else PRE
+
+    private def pushState(s: State) =
+        sstack.push(s)
+
+    val EOF = (-1).toChar
+
+    def get(rdr: java.io.Reader) : Char =
+        rdr.read.toChar
+
+    private var line    = 1
+    private var col     = 0
+
+    def error(s: String) =
+        println("error : [%d:%d] : %s".format(line, col, s))
+
+    def parse(reader: java.io.Reader) : Boolean =
+        {
+        var state : State = PRE
+        var quotec  = '"'
+        var depth   = 0
+        val sb      = new StringBuilder
+        val etag    = new StringBuilder
+        var tagName = ""
+        var lvalue  = ""
+        var rvalue  = ""
+        val attrs   = scala.collection.mutable.Map[String, String]()
+        var eol     = false
+
+        var ch = get(reader)
+
+        var cont = true 
+
+        while (cont && ch != EOF)
+            {
+            if (ch == '\n' && eol) {
+                eol = false
+                //continue
+              } else if (eol) {
+                eol = false
+              } else if (ch == '\n') {
+                line += 1
+                col=0
+              } else if (ch == '\r') {
+                eol = true
+                ch = '\n'
+                line += 1
+                col=0
+              } else {
+                col += 1
+              }
+
+          state match
+              {
+              case DONE =>
+                 cont = false
+
+              case TEXT =>
+                  if  (ch == '<')
+                      {
+                      pushState(state)
+                      state = START_TAG
+                      characters(sb.toString)
+                      sb.clear
+                      }
+                  else if (ch == '&')
+                      {
+                      pushState(state)
+                      state = ENTITY
+                      etag.clear
+                      }
+                  else
+                      {
+                      sb.append(ch)
+                      }
+
+              case CLOSE_TAG =>
+                  if (ch == '>')
+                      {
+                      state = popState
+                      tagName = sb.toString
+                      sb.clear
+                      depth -= 0
+                      if (depth <= 0)
+                          state = DONE
+                      endElement(tagName)
+                      }
+                  else
+                      {
+                      sb.append(ch)
+                      }
+
+              case CDATA =>
+                  if (ch == '>' && sb.toString.endsWith("]]"))
+                      {
+                      sb.setLength(sb.length()-2)
+                      characters(sb.toString)
+                      sb.clear
+                      state = popState
+                      }
+                  else
+                      sb.append(ch)
+
+
+              case COMMENT =>
+                  if (ch == '>' && sb.toString.endsWith("--"))
+                      {
+                      sb.clear
+                      state = popState
+                      }
+                  else
+                      sb.append(ch)
+
+              case PRE =>
+                  if (ch == '<')
+                      {
+                      state = TEXT
+                      pushState(state)
+                      state = START_TAG
+                      }
+
+              case DOCTYPE =>
+                  if (ch == '>')
+                      {
+                      state = popState
+                      if (state == TEXT) state = PRE
+                      }
+
+              case START_TAG =>
+                  state = popState
+                  if (ch == '/')
+                      {
+                      pushState(state)
+                      state = CLOSE_TAG
+                      }
+                  else if (ch == '?')
+                      {
+                      state = DOCTYPE
+                      }
+                  else
+                      {
+                      pushState(state)
+                      state = OPEN_TAG
+                      tagName = ""
+                      attrs.clear
+                      sb.append(ch)
+                      }
+
+              case ENTITY =>
+                  if (ch == ';')
+                      {
+                      state = popState
+                      val cent = etag.toString
+                      etag.clear
+                      if (cent == "lt")
+                          sb.append('<')
+                      else if (cent == "gt")
+                          sb.append('>')
+                      else if (cent == "amp")
+                          sb.append('&')
+                      else if (cent == "quot")
+                          sb.append('"')
+                      else if (cent == "apos")
+                          sb.append('\'')
+                      else if (cent.startsWith("#"))
+                          sb.append(Integer.parseInt(cent.substring(1)).toString)
+                      else
+                          error("Unknown entity: &"+cent+"")
+                      }
+                  else
+                      {
+                      etag.append(ch)
+                      }
+              case SINGLE_TAG =>
+                  if (tagName == null)
+                      tagName = sb.toString
+                  if (ch != '>')
+                      error("Expected > for tag: <"+tagName+"/>")
+                  startElement(tagName, attrs.toMap)
+                  endElement(tagName)
+                  if (depth==0)
+                      {
+                      cont = false
+                      }
+                  else
+                      {
+                      sb.clear
+                      attrs.clear
+                      tagName = ""
+                      state = popState
+                      }
+
+              case OPEN_TAG =>
+                  if (ch == '>')
+                      {
+                      if (tagName == null)
+                          tagName = sb.toString
+                      sb.clear
+                      depth += 1
+                      startElement(tagName, attrs.toMap)
+                      tagName = ""
+                      attrs.clear
+                      state = popState
+                      }
+                  else if (ch == '/')
+                      {
+                      state = SINGLE_TAG
+                      }
+                  else if (ch == '-' && sb.toString == "!-")
+                      {
+                      state = COMMENT
+                      }
+                  else if (ch == '[' && sb.toString == "![CDATA")
+                      {
+                      state = CDATA
+                      sb.clear
+                      }
+                  else if(ch == 'E' && sb.toString == "!DOCTYP")
+                      {
+                      sb.clear
+                      state = DOCTYPE
+                      }
+                  else if (ch.isWhitespace)
+                      {
+                      tagName = sb.toString
+                      sb.clear
+                      state = IN_TAG
+                      } 
+                  else
+                      {
+                      sb.append(ch)
+                      }
+
+              case QUOTE =>
+                  if (ch == quotec)
+                      {
+                      rvalue = sb.toString
+                      sb.clear
+                      attrs.put(lvalue,rvalue)
+                      state = IN_TAG
+                      }
+                  else if (" \r\n\u0009".indexOf(ch) >= 0)
+                      {
+                      sb.append(' ')
+                      }
+                  else if(ch == '&')
+                      {
+                      pushState(state)
+                      state = ENTITY
+                      etag.clear
+                      }
+                  else
+                      {
+                      sb.append(ch)
+                      }
+
+              case ATTR_RVALUE =>
+                  if (ch == '"' || ch == '\'')
+                      {
+                      quotec = ch
+                      state = QUOTE
+                      }
+                  else if (ch.isWhitespace)
+                      {
+                      }
+                  else
+                      {
+                      error("Error in attribute processing")
+                      }
+
+              case ATTR_LVALUE =>
+                  if (ch.isWhitespace)
+                      {
+                      lvalue = sb.toString
+                      sb.clear
+                      state = ATTR_EQUAL
+                      }
+                  else if (ch == '=')
+                      {
+                      lvalue = sb.toString
+                      sb.clear
+                      state = ATTR_RVALUE
+                      }
+                  else
+                      {
+                      sb.append(ch)
+                      }
+
+              case ATTR_EQUAL =>
+                  if (ch == '=')
+                     {
+                     state = ATTR_RVALUE
+                     }
+                 else if (ch.isWhitespace)
+                     {
+                     }
+                 else
+                     {
+                     error("Error in attribute processing.")
+                     }
+
+              case IN_TAG =>
+                  if (ch == '>')
+                      {
+                      state = popState
+                      startElement(tagName, attrs.toMap)
+                      depth += 1
+                      tagName = null
+                      attrs.clear
+                      }
+                  else if(ch == '/')
+                      {
+                      state = SINGLE_TAG
+                      }
+                  else if (ch.isWhitespace)
+                      {
+                      }
+                  else
+                      {
+                      state = ATTR_LVALUE
+                      sb.append(ch)
+                      }
+              }//match
+
+              ch = get(reader)
+
+          }//while
+
+          if (state != DONE)
+              {
+              error("missing end tag")
+              false
+              }
+          else
+              true
+      }//parse
+
+}//XmppParser
+
+
+
+object XmppParserTest
+{
+    def test =
+        {
+        }
+
+    def main(argv: Array[String]) : Unit =
+        {
+        test
+        }
+}
+
+
 
 
