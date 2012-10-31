@@ -24,7 +24,7 @@
  */
 package pedro.net
 
-import pedro.data.{XmlPush2, Element}
+import pedro.data.{XmlPush3, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
@@ -468,12 +468,12 @@ class XmppClient(
         true
         }
     
-    class XmppParser extends XmlPush2
+    class XmppParser extends XmlPush3
         {
         override def process(elem: Element) : Boolean =
             {
             //println("ie: " + elem)
-            if (stack.top.name == "stream")
+            if (stack.size > 0 && stack.top.name == "stream")
                 {
                 receive(elem)
                 true
@@ -503,7 +503,7 @@ class XmppClient(
                     else
                         {
                         print(ch.toChar)
-                        parser.append(ch)
+                        parser.write(ch)
                         }
                     }
                 catch

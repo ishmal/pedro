@@ -766,51 +766,43 @@ class XmlPush3 extends Thread
         }
     val stack = scala.collection.mutable.Stack[StackItem]()
     
-    //stax api does not use generics
-    private def getAttrs(iter: java.util.Iterator[_]) : Map[String, Attribute] =
-        {
-        val buf = scala.collection.mutable.Map[String, Attribute]()
-        while (iter.hasNext)
-            {
-            val jattr = iter.next.asInstanceOf[javax.xml.stream.events.Attribute]
-            val name = jattr.getName.toString
-            buf += name -> Attribute(name, jattr.getValue)
-            }
-        buf.toMap
-        }
-    
     private var open = true
    
-    class PStream extends java.io.InputStream
+    class Stream extends java.io.InputStream
         {
-        private val size = 32 * 1024
-        private val queue = Array.ofDim[Int](size)
-        private var head = 0
-        private var tail = 0
+        private var queue = scala.collection.immutable.Queue[Int]()
+
         override def available =
-            {
-            var len = head - tail
-            if (len >= 0) len else size + len
-            }
-        private def incr(ptr: Int) : Int =
-            if (ptr >= size) 0 else ptr + 1
+            queue.size
+            
+        private val monitor = new Object
     
-        def append(ch: Int) =
+        def write(ch: Int) =
             {
-            head = incr(head)
-            if (head == tail)
-                {} //throw something
-            queue(head) = ch
-            this.notify
+            monitor.synchronized
+                {
+                queue = queue.enqueue(ch)
+                monitor.notify
+                }
             }
         
         override def read : Int =
             {
-            synchronized 
+            if (open)
                 {
-                while (available == 0) wait
-                tail = incr(tail)
-                queue(tail)
+                monitor.synchronized 
+                    {
+                    while (available == 0)
+                        monitor.wait
+                    val ch = queue.head
+                    queue = queue.tail
+                    print("ch:" + ch)
+                    ch
+                    }
+                }
+            else
+                {
+                -1
                 }
             }
     
@@ -818,34 +810,48 @@ class XmlPush3 extends Thread
         override def close =
             {
             open = false
-            append(-1)
+            write(-1)
             }
         
         }
     
-    private val ins = new PStream
+    private val ins = new Stream
+    
+    private var cont = false
     
     override def run : Unit =
         {
-        val inputFactory = javax.xml.stream.XMLInputFactory.newInstance
-        var rdr = new java.io.InputStreamReader(ins, "UTF-8")
-        val parser = inputFactory.createXMLEventReader(rdr)
-        while (parser.hasNext)
+        val factory = javax.xml.stream.XMLInputFactory.newInstance
+        println("factory:" + factory.getClass.getName)
+        println("here a")
+        val parser = factory.createXMLStreamReader(ins, "UTF-8")
+        cont = true
+        println("here b")
+        while (cont && parser.hasNext)
             {
-            val evt = parser.nextEvent
-            if (evt.isStartElement)
+            val evt = parser.next
+            println("evt:"+evt)
+            if (parser.isStartElement)
                 {
-                val elem = evt.asStartElement
-                stack.push(new StackItem(elem.getName.toString, getAttrs(elem.getAttributes)))        
+                val name  = parser.getLocalName
+                val attrs = scala.collection.mutable.Map[String, Attribute]()
+                for (i <- 0 until parser.getAttributeCount)
+                    {
+                    val name = parser.getAttributeLocalName(i)
+                    val value = parser.getAttributeValue(i)
+                    attrs += name -> Attribute(name, value)
+                    }
+                println("start:" + name)
+                stack.push(new StackItem(name, attrs.toMap))        
                 }
-            else if (evt.isCharacters)
+            else if (parser.isCharacters)
                 {
-                stack.top.buf.append(evt.asCharacters.getData)
+                stack.top.buf.append(parser.getText)
                 }
-            else if (evt.isEndElement)
+            else if (parser.isEndElement)
                 {
-                val endElem = evt.asEndElement
                 val item = stack.pop
+                println("end:"+item.name)
                 val elem = Element(
                     name       = item.name, 
                     attributes = item.attrs,
@@ -872,11 +878,25 @@ class XmlPush3 extends Thread
             false
         }
         
-    def append(ch: Int) = ins.append(ch)
+    def write(ch: Int) : Unit =
+        ins.write(ch)
+       
+    def write(arr: Array[Byte]) : Unit =
+        {
+        for (b <- arr)
+            write(b.toInt)
+        } 
         
-    def close = ins.close
-
-    
+    def write(s: String) : Unit =
+        {
+        write(s.getBytes)
+        } 
+        
+    def close = 
+        {
+        ins.close
+        cont = false
+        }    
 }
 
 
@@ -900,10 +920,26 @@ object XmlPush3Test
                 }
             }
 
-        val xml = "<root><a/><b/><c/></root>".getBytes("UTF-8").map(_.toInt & 255)
-        for (i <- xml)
-            p.append(i)
         p.start
+        p.write("<?xml version='1.0'?>")
+        Thread.sleep(100)
+        print("header")
+        p.write("<root>")
+        Thread.sleep(100)
+        print("step 1")
+        p.write("<a/>")
+        Thread.sleep(100)
+        print("step 2")
+        p.write("<b/>")
+        Thread.sleep(100)
+        print("step 3")
+        p.write("<c/>")
+        Thread.sleep(100)
+        print("step 4")
+        p.write("</root>")
+        Thread.sleep(100)
+        print("step 5")
+        //p.close
         }
         
         
