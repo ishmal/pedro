@@ -24,7 +24,7 @@
  */
 package pedro.net
 
-import pedro.data.{XmlPush2, Element}
+import pedro.data.{XmlPush2,XmlPush3, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
@@ -47,7 +47,7 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
 {
 
     private var sock = new java.net.Socket
-    private var istr : Option[BufferedReader] = None
+    var istr : Option[BufferedReader] = None
     private var ostr : Option[BufferedWriter] = None
 
     private def err(msg: String) =
@@ -310,6 +310,8 @@ class XmppClient(
         {
         val from = elem("from")
         val to   = elem("to")
+        val typ  = elem("type")
+        val isQuery = ((elem \\ "query").size > 0)
         if ((elem \\ "ping").size > 0)
             {
             val msg = "<iq from='" + to + "' to='" + from + "' id='" + id +"' type='result'/>"
@@ -320,6 +322,7 @@ class XmppClient(
             val jid = (elem \ "bind" \ "jid").text
             trace("jid: " + jid)
             }
+        
         }
     
     //###############################################
@@ -342,6 +345,11 @@ class XmppClient(
         val to   = elem("to")
         val body = (elem \ "body").text
         trace("Got message! : " + from + " : " + body)
+        if (body.size > 0)
+            {
+            val msg = "<message to='" + from + "'><body>You said: " + body + "</body></message>"
+            write(msg)
+            }
         }
         
     def messageSend(to: String, msg: String) =
@@ -435,13 +443,15 @@ class XmppClient(
             
                 if (elem.name == "success")
                     {
+                    receiver.abort
+                    receiver = new Receiver
+                    receiver.start
                     write(streamStartMsg)
                     state = Session
                     }
             case Session =>
                    if (elem.name == "features")
                        {
-                       state = Connected
                        if ((elem \\ "bind").size > 0)
                            {
                             write("<iq type='set' id='" + id + "'>" +
@@ -453,6 +463,9 @@ class XmppClient(
                             write("<iq type='set' id='" + id + "'>" +
                                 "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>")
                            }
+                        //startup things
+                        write("<presence/>")
+                        write("<iq id='" + id + "' type='get'><query xmlns='jabber:iq:roster'/></iq>")
                         state = Connected   
                         }
             case Connected =>
@@ -463,7 +476,6 @@ class XmppClient(
                     case "error"    => errorReceive(elem)
                     case "presence" => presenceReceive(elem)
                     }
-                messageSend("ishmalius@gmail.com", "hello, there!")
             }
         true
         }
@@ -473,7 +485,7 @@ class XmppClient(
         override def process(elem: Element) : Boolean =
             {
             //println("ie: " + elem)
-            if (stack.top.name == "stream")
+            if (stack.size > 0 && stack.top.name == "stream")
                 {
                 receive(elem)
                 true
@@ -485,26 +497,18 @@ class XmppClient(
     
     class Receiver extends Thread
         {
-        var parser = new XmppParser
         var cont = false
+        var parser = new XmppParser
+        parser.start
         override def run =
             {
-            parser.start
             cont = true
             while (cont)
                 {
                 try
                     {
-                    var ch = conn.read
-                    if (ch < 0)
-                        {
-                        abort
-                        }
-                    else
-                        {
-                        print(ch.toChar)
-                        parser.append(ch)
-                        }
+                    val ch = conn.read
+                    parser.append(ch)
                     }
                 catch
                     {
@@ -516,14 +520,13 @@ class XmppClient(
             
         def abort =
             {
-            parser.stop
+            parser.close
             cont = false
             Thread.sleep(200)
             }
         }
     private var receiver = new Receiver
     
-  
         
         
         
@@ -591,7 +594,7 @@ object XmppClientTest
         /*
         val host = "129-7-67-40.dhcp.uh.edu"
         val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
-        val pass = "gotcha"
+        val pass = "good try.  next time"
         */
         val cli = XmppClient(debug=true, host=host, jid=jid, pass=pass)
         cli.connect
