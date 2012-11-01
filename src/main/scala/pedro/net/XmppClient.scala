@@ -24,7 +24,7 @@
  */
 package pedro.net
 
-import pedro.data.{XmlPush3, Element}
+import pedro.data.{XmppParser, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
@@ -483,7 +483,6 @@ class XmppClient(
                     try
                         {
                         ret = wrapped.read
-                        print(ret.toChar)
                         }
                     catch
                         {
@@ -493,13 +492,14 @@ class XmppClient(
                             cont = false
                         }
                     }
+                //print(ret.toChar)
                 ret
                 }
             }
 
         override def run =
             {
-            var parser = new XmlPush3
+            var parser = new XmppParser
                 {
                 override def process(elem: Element) : Boolean =
                     {

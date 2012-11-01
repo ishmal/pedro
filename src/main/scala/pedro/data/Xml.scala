@@ -961,8 +961,13 @@ class XmppParser
 
     val EOF = (-1).toChar
 
-    def get(rdr: java.io.Reader) : Char =
-        rdr.read.toChar
+    def get(ins: java.io.InputStream) : Char =
+        {
+        val ch = ins.read.toChar
+        print(ch)
+        ch
+        }
+    
 
     private var line    = 1
     private var col     = 0
@@ -970,7 +975,7 @@ class XmppParser
     def error(s: String) =
         println("error : [%d:%d] : %s".format(line, col, s))
 
-    def parse(reader: java.io.Reader) : Boolean =
+    def parse(ins: java.io.InputStream) : Boolean =
         {
         var state : State = PRE
         var quotec  = '"'
@@ -983,7 +988,7 @@ class XmppParser
         val attrs   = scala.collection.mutable.Map[String, String]()
         var eol     = false
 
-        var ch = get(reader)
+        var ch = get(ins)
 
         var cont = true
 
@@ -1276,7 +1281,7 @@ class XmppParser
                       }
               }//match
 
-              ch = get(reader)
+              ch = get(ins)
 
           }//while
 
@@ -1299,7 +1304,7 @@ object XmppParserTest
         {
         val xml = "<root><a/><b/><c/></root>"
         val p = new XmppParser
-        p.parse(new java.io.StringReader(xml))
+        p.parse(new java.io.ByteArrayInputStream(xml.getBytes))
         }
 
     def main(argv: Array[String]) : Unit =
