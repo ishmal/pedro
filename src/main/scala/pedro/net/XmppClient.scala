@@ -24,6 +24,9 @@
  */
 package pedro.net
 
+
+import akka.actor.{Actor, ActorSystem, Props}
+
 import pedro.data.{XmppParser, Element}
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
@@ -112,15 +115,27 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
         sc.getSocketFactory
         }
     val defaultSocketFactory = SSLSocketFactory.getDefault.asInstanceOf[SSLSocketFactory]
-        
+    
     def trySSL(factory: SSLSocketFactory) : Option[Socket] =
         {
         try
             {
+            var done = false
             val sslsock = factory.createSocket(sock, sock.getInetAddress().getHostAddress(),
                      sock.getPort(), true).asInstanceOf[SSLSocket]
             sslsock.setUseClientMode(true)
+            sslsock.addHandshakeCompletedListener(new javax.net.ssl.HandshakeCompletedListener
+                {
+                def handshakeCompleted(evt: javax.net.ssl.HandshakeCompletedEvent)
+                    {
+                    done = true
+                    }
+                })
             sslsock.startHandshake
+            while (!done)
+                {
+                Thread.sleep(100)
+                }
             Some(sslsock)
             }
         catch
@@ -143,6 +158,7 @@ class XmppTcpConnection(val host: String, val port: Int) extends XmppConnection
             }
         }
 }
+
 
 
 
@@ -169,30 +185,16 @@ class XmppClient(
     val domain: String,
     val resource: String,
     val pass: String,
-    val debug: Boolean, 
-    val callbacks: PartialFunction[XmppEvent, Unit] = XmppNullPF
-    ) extends pedro.util.Logged
+    val debug: Boolean 
+    ) extends Actor with pedro.util.Logged
 {
+    val par = context.parent
+    
     val jid = user + "@" + domain + "/" + resource
     
     def status(msg: String) =
-        post(XmppStatus(msg))
-        
-    private val defaultCallbacks : PartialFunction[XmppEvent, Unit] =
-        {
-        case XmppConnected(user, host) =>
-            trace("connected: " + user + " : " + host)
-        case XmppDisconnected(user, host) =>
-            trace("disconnected: " + user + " : " + host)
-        case XmppStatus(msg) =>
-            trace("status:" + msg)
-        }
-
-    private val handler = callbacks orElse defaultCallbacks
-        
-    private def post(evt: XmppEvent) =
-        handler(evt)
-        
+        par ! XmppStatus(msg)
+                
     
     //########################################################
     //# U T I L I T Y
@@ -372,7 +374,130 @@ class XmppClient(
     
     
     
-    private def receive(elem: Element) : Boolean =
+    class Receiver extends Actor
+        {
+        val par = context.parent
+            
+            
+        var abortme = false
+        class IStream(wrapped: java.io.InputStream) extends java.io.InputStream
+            {
+            override def read : Int =
+                {
+                var cont = true
+                while (cont)
+                    {
+                    try
+                        {
+                        return wrapped.read
+                        }
+                    catch
+                        {
+                        case e: java.net.SocketTimeoutException =>
+                            if (abortme)
+                                 cont = false
+                        }
+                    }
+                 -1
+                 }
+            }
+ 
+        val parser = new XmppParser
+            {
+            override def process(elem: Element) : Boolean =
+                {
+                //println("ie: " + elem)
+                if (stack.size > 0 && stack.top.name == "stream")
+                    {
+                    par ! elem
+                    true
+                    }
+                else
+                    false
+                }
+            }
+            
+        class IThread(name:String) extends Thread(name)
+            {
+            override def run =
+                {
+                abortme = false
+                println("started: " + name)
+                parser.parse(new IStream(conn.inputStream))
+                println("aborted: " + name)
+                }
+            }
+            
+        var thread = new IThread("rcvr:"+state)
+            
+        def receive =
+            {
+                
+            case "startup" =>
+                {
+                val thread = new IThread("rcvr:"+state)
+                thread.start
+                }
+
+            case "preparefortls" =>
+                {
+                println("received restart");
+                parser.abort
+                abortme = true
+                thread.join
+                println("thread done")
+                par ! "readyfortls"
+                }
+
+            case "shutdown" =>
+                {
+                println("received shutdown");
+                parser.abort
+                abortme = true
+                thread.join
+                println("thread done")
+                }
+
+            }            
+            
+        }//Receiver
+
+
+    
+    def receive =
+        {
+        case elem: Element   => handleElem(elem)
+        case "readyfortls" =>
+            if (!conn.goSSL)
+                {
+                error("Could not perform STARTTLS")
+                }
+            receiver ! "startup"
+            trace("starttls ok")
+            write(streamStartMsg)
+            state = SslStart
+
+        case "connect" =>
+            state = Start
+            if (!conn.open)
+                {
+                //false
+                }
+            else
+                {
+                receiver ! "startup"
+                write(streamStartMsg)
+                }
+        case "disconnect" =>
+            state = Start
+            conn.close
+            receiver ! "shutdown"
+
+        }
+        
+
+
+    def handleElem(elem: Element) : Boolean =
         {
         println("state: " + state + "  elem: " + elem)
         state match
@@ -387,16 +512,7 @@ class XmppClient(
             case StartTls =>
                 if (elem.name == "proceed")
                     {
-                    receiver.abort
-                    if (!conn.goSSL)
-                        {
-                        error("Could not perform STARTTLS")
-                        }
-                    receiver = new Receiver
-                    receiver.start
-                    trace("starttls ok")
-                    write(streamStartMsg)
-                    state = SslStart
+                    receiver ! "preparefortls"
                     }
             case SslStart =>
                 if (elem.name == "features")
@@ -428,29 +544,25 @@ class XmppClient(
                     state = Auth2
                     }
             case Auth2 =>
-            
                 if (elem.name == "success")
                     {
-                    receiver.abort
-                    receiver = new Receiver
-                    receiver.start
                     write(streamStartMsg)
                     state = Session
                     }
             case Session =>
-                   if (elem.name == "features")
-                       {
-                       if ((elem \\ "bind").size > 0)
-                           {
+                    if (elem.name == "features")
+                        {
+                        if ((elem \\ "bind").size > 0)
+                            {
                             write("<iq type='set' id='" + id + "'>" +
                                 "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>" +
                                 "<resource>" + resource + "</resource></bind></iq>")
-                           }
-                       if ((elem \\ "session").size > 0)
-                           {
+                            }
+                        if ((elem \\ "session").size > 0)
+                            {
                             write("<iq type='set' id='" + id + "'>" +
                                 "<session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>")
-                           }
+                            }
                         //startup things
                         write("<presence/>")
                         write("<iq id='" + id + "' type='get'><query xmlns='jabber:iq:roster'/></iq>")
@@ -467,117 +579,35 @@ class XmppClient(
             }
         true
         }
-    
-
-    class Receiver extends Thread
-        {
-        var cont = false
-
-        class IStream(wrapped: java.io.InputStream) extends java.io.InputStream
-            {
-            override def read : Int =
-                {
-                var ret = 0
-                while (ret == 0)
-                    {
-                    try
-                        {
-                        ret = wrapped.read
-                        }
-                    catch
-                        {
-                        case e: java.net.SocketTimeoutException =>
-                            {}
-                        case e: Exception =>
-                            cont = false
-                        }
-                    }
-                //print(ret.toChar)
-                ret
-                }
-            }
-
-        override def run =
-            {
-            var parser = new XmppParser
-                {
-                override def process(elem: Element) : Boolean =
-                    {
-                    //println("ie: " + elem)
-                    if (stack.size > 0 && stack.top.name == "stream")
-                        {
-                        receive(elem)
-                        true
-                        }
-                    else
-                        false
-                    }
-                }
-            parser.parse(new IStream(conn.inputStream))
-            }
-            
-        def abort =
-            {
-            //parser.close
-            cont = false
-            Thread.sleep(200)
-            }
-        }
-    private var receiver = new Receiver
+        
+    private val receiver = context.actorOf(Props(new Receiver),  name = "receiver")
     
         
-        
-        
-    def connect : Boolean =
+    override def postStop =
         {
-        state = Start
-        if (!conn.open)
-            {
-            false
-            }
-        else
-            {
-            receiver.start
-            write(streamStartMsg)
-            true
-            }
+        println("POST")
+        receiver ! "shutdown"
         }
-        
-    def disconnect : Boolean =
-        {
-        state = Start
-        conn.close
-        receiver.abort
-        true
-        }
-    
 
 }
 
 
-object XmppNullPF extends PartialFunction[XmppEvent, Unit]
-{
-    def isDefinedAt(v: XmppEvent) = false
-    def apply(v: XmppEvent) : Unit = {}
-}
 
 
 
-object XmppClient
+class XmppBot(host: String="localhost", port: Int = 5222, jid: String = "user@localhost/scala",
+     pass: String = "pass") extends Actor with pedro.util.Logged
 {
     val jidRegex = "^(?:([^@/<>'\"]+)@)?([^@/<>'\"]+)(?:/([^<>'\"]*))?$".r
-
-
-    def apply(host: String = "host",
-              port: Int = 5222, 
-              jid: String = "user@example.com/hello",
-              pass: String = "nopass",
-              debug: Boolean = false,
-              callbacks: PartialFunction[XmppEvent, Unit] = XmppNullPF
-              ) : XmppClient =
+    val jidRegex(user, domain, resource) = jid
+    
+    val cli = context.actorOf(Props(
+           new XmppClient(host, port, user, domain, resource, pass, true)),
+             "xmppClient")
+             
+    def receive =
         {
-        val jidRegex(user, domain, resource) = jid
-        new XmppClient(host, port, user, domain, resource, pass, debug, callbacks)
+        case "connect" => cli ! "connect"
         }
 
 }
@@ -594,8 +624,8 @@ object XmppClientTest
         val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
         val pass = "flamingo"
         /**/
-        val cli = XmppClient(debug=true, host=host, jid=jid, pass=pass)
-        cli.connect
+        val bot = ActorSystem().actorOf(Props(new XmppBot(host=host, jid=jid, pass=pass)))
+        bot ! "connect"
         }
 
     def main(argv: Array[String]) : Unit =

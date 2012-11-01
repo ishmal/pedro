@@ -890,10 +890,11 @@ class XmppParser
     /**
      * from sax ContentHandler
      */
-    def startElement(name: String, attrs: Map[String, String]) =
+    def startElement(qname: String, attrs: Map[String, String]) =
         {
-        val item = new StackItem(name, attrs.map(e=> e._1 -> Attribute(e._1, e._2)).toMap)
-        println("start:" + name)
+        val arr = qname.split(":")
+        val name = if (arr.size > 1) arr(1) else qname
+        val item = new StackItem(name, attrs.map(e=> e._1 -> Attribute(name=e._1, value=e._2)).toMap)
         stack.push(item)
         }
 
@@ -908,8 +909,7 @@ class XmppParser
      */
     def endElement(name: String) =
         {
-        println("end:" + name)
-       val item = stack.pop
+        val item = stack.pop
         val elem = Element(
             name       = item.name,
             attributes = item.attrs,
@@ -939,9 +939,9 @@ class XmppParser
     case object OPEN_TAG    extends State
     case object CLOSE_TAG   extends State
     case object START_TAG   extends State
-    case object ATTR_LVALUE extends State
+    case object ATTR_NAME extends State
     case object ATTR_EQUAL  extends State
-    case object ATTR_RVALUE extends State
+    case object ATTR_VALUE extends State
     case object QUOTE       extends State
     case object IN_TAG      extends State
     case object SINGLE_TAG  extends State
@@ -974,6 +974,11 @@ class XmppParser
 
     def error(s: String) =
         println("error : [%d:%d] : %s".format(line, col, s))
+        
+    private var aborted = false
+    
+    def abort =
+        aborted = true
 
     def parse(ins: java.io.InputStream) : Boolean =
         {
@@ -983,8 +988,8 @@ class XmppParser
         val sb      = new StringBuilder
         val etag    = new StringBuilder
         var tagName = ""
-        var lvalue  = ""
-        var rvalue  = ""
+        var attrName  = ""
+        var attrVal  = ""
         val attrs   = scala.collection.mutable.Map[String, String]()
         var eol     = false
 
@@ -992,7 +997,8 @@ class XmppParser
 
         var cont = true
 
-        while (cont && ch != EOF)
+        aborted = false
+        while (!aborted && cont && ch != EOF)
             {
             if (ch == '\n' && eol) {
                 eol = false
@@ -1132,8 +1138,10 @@ class XmppParser
                       {
                       etag.append(ch)
                       }
+                      
               case SINGLE_TAG =>
-                  tagName = sb.toString
+                  if (tagName.size == 0)
+                      tagName = sb.toString
                   if (ch != '>')
                       error("Expected > for tag: <"+tagName+"/>")
                   startElement(tagName, attrs.toMap)
@@ -1193,16 +1201,16 @@ class XmppParser
               case QUOTE =>
                   if (ch == quotec)
                       {
-                      rvalue = sb.toString
+                      attrVal = sb.toString
                       sb.clear
-                      attrs.put(lvalue,rvalue)
+                      attrs += attrName -> attrVal
                       state = IN_TAG
                       }
                   else if (" \r\n\u0009".indexOf(ch) >= 0)
                       {
                       sb.append(' ')
                       }
-                  else if(ch == '&')
+                  else if (ch == '&')
                       {
                       pushState(state)
                       state = ENTITY
@@ -1213,7 +1221,7 @@ class XmppParser
                       sb.append(ch)
                       }
 
-              case ATTR_RVALUE =>
+              case ATTR_VALUE =>
                   if (ch == '"' || ch == '\'')
                       {
                       quotec = ch
@@ -1227,18 +1235,18 @@ class XmppParser
                       error("Error in attribute processing")
                       }
 
-              case ATTR_LVALUE =>
+              case ATTR_NAME =>
                   if (ch.isWhitespace)
                       {
-                      lvalue = sb.toString
+                      attrName = sb.toString
                       sb.clear
                       state = ATTR_EQUAL
                       }
                   else if (ch == '=')
                       {
-                      lvalue = sb.toString
+                      attrName = sb.toString
                       sb.clear
-                      state = ATTR_RVALUE
+                      state = ATTR_VALUE
                       }
                   else
                       {
@@ -1248,7 +1256,7 @@ class XmppParser
               case ATTR_EQUAL =>
                   if (ch == '=')
                      {
-                     state = ATTR_RVALUE
+                     state = ATTR_VALUE
                      }
                  else if (ch.isWhitespace)
                      {
@@ -1276,7 +1284,7 @@ class XmppParser
                       }
                   else
                       {
-                      state = ATTR_LVALUE
+                      state = ATTR_NAME
                       sb.append(ch)
                       }
               }//match
@@ -1285,7 +1293,7 @@ class XmppParser
 
           }//while
 
-          if (state != DONE)
+          if (!aborted && state != DONE)
               {
               error("missing end tag: " + state)
               false
@@ -1302,7 +1310,7 @@ object XmppParserTest
 {
     def test =
         {
-        val xml = "<root><a/><b/><c/></root>"
+        val xml = "<root><a v=\"hello\"/><b v=\"world\"/><c/></root>"
         val p = new XmppParser
         p.parse(new java.io.ByteArrayInputStream(xml.getBytes))
         }
