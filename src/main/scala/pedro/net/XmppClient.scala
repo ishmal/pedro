@@ -622,7 +622,7 @@ object XmppClientTest
         /**/
         val host = "129-7-67-40.dhcp.uh.edu"
         val jid = "ishmal@129-7-67-40.dhcp.uh.edu/scala"
-        val pass = "flamingo"
+        val pass = "password"
         /**/
         val bot = ActorSystem().actorOf(Props(new XmppBot(host=host, jid=jid, pass=pass)))
         bot ! "connect"
