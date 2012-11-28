@@ -1,10 +1,11 @@
-name := "Pedro"
+
+name := "pedro"
 
 version := "0.12.0"
 
 organization := "org.pedro"
 
-scalaVersion := "2.10.0-RC1"
+scalaVersion := "2.10.0-RC2"
 
 libraryDependencies ++= Seq(
     "com.typesafe.akka"  % "akka-actor_2.10.0-RC1" % "2.1.0-RC1",
