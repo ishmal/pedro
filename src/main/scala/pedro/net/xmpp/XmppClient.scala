@@ -22,12 +22,12 @@
  *  License along with this library; if not, write to the Free Software
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
-package pedro.net
+package pedro.net.xmpp
 
 
 import akka.actor.{Actor, ActorSystem, Props}
 
-import pedro.data.{XmppParser, Element}
+import pedro.data.Element
 import java.io.{BufferedReader, InputStreamReader, BufferedWriter, OutputStreamWriter}
 import java.net.Socket
 import java.security.{KeyStore,SecureRandom}
