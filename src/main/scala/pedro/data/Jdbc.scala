@@ -137,8 +137,10 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
         try
             {
             val buf = new StringBuilder
-            buf.append("insert into ").append(table).append(" set ")
-            buf.append(values.map(_._1 + "=?").mkString(","))
+            buf.append("insert into ").append(table).append(" ")
+            buf.append(values.map(_._1).mkString("(", ",", ")"))
+            buf.append(" values ")
+            buf.append(values.map(_ => "?").mkString("(", ",", ")"))
             stmt = Some(conn.prepareStatement(buf.toString))
             var i = 1
             for (v <- values)
@@ -154,6 +156,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
             {
             case e: Exception =>
                 error("insert: " + e)
+                if (stmt.isDefined) error("the statement is:" + stmt.get)
                 stmt.foreach(_.close)
                 false
             }

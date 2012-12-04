@@ -1,5 +1,5 @@
 /**
- *  This is a simple implementation of OAuth for Scala.
+ *  This is a simple implementation of a servlet for Scala.
  *
  *  Author: Bob Jamison
  *  Copyright (C) 2010-2012 Bob Jamison
@@ -25,6 +25,24 @@ package pedro.net.servlet
 
 import java.io.{Reader,Writer}
 import javax.servlet.http.{HttpServlet,HttpServletRequest,HttpServletResponse,HttpSession}
+
+
+/**
+ * Authorization record.  Used to verify that access to a Servlet's
+ * handlers is permitted
+ */  
+trait Auth
+{
+    val id    : String
+    val level : Int
+}
+
+case class AuthBasic(id:String, level:Int) extends Auth
+case object AuthNone extends Auth
+{
+    val id = ""
+    val level = 0
+}
 
 
 
