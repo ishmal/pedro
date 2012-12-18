@@ -212,7 +212,7 @@ class Jdbc(conn: java.sql.Connection)  extends pedro.util.Logged
      *     rows to delete.  Can be "" to delete all records.
      * @return true on success, else false
      */                        
-    def delete(table: String, where: String) : Boolean =
+    def delete(table: String, where: String = "") : Boolean =
         {
         val stmt = conn.createStatement
         try
