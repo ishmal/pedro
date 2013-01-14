@@ -47,6 +47,7 @@ trait JsonOutput
         ins.foreach(ch=>
             {
             if (ch == '\\')       buf.append("\\\\")
+            else if (ch == '"')   buf.append("\\\"")
             else if (ch == '\f')  buf.append("\\f")
             else if (ch == '\b')  buf.append("\\b")
             else if (ch == '\t')  buf.append("\\t")
