@@ -27,6 +27,11 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FeatureSpec}
 import org.scalatest.matchers.{ShouldMatchers}
 
+/**
+ * Note: these accounts are for the library only.  Any abusers, and we'll
+ * simply change the keys
+ */
+
 @RunWith(classOf[JUnitRunner])
 class OAuth1Test extends FeatureSpec with ShouldMatchers
 {
@@ -80,7 +85,7 @@ class OAuth2Test extends FeatureSpec with ShouldMatchers
 
     feature("OAuth v2 client can connect with and use an authenticated service")
         {
-        scenario("Check twitter updates")
+        scenario("Check facebook updates")
             {
             val oauth = new OAuth2Client(scalaNode)
 
