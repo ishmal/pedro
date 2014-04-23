@@ -652,7 +652,7 @@ class IrcClient(
                     observer!IrcNameList(info.name, info.nameList)
                     }) 
             case CMD_PRIVMSG =>
-                if (param.size>0 && param(0) == '\01')
+                if (param.size>0 && param(0) == '\u0001')
                     processCtcp(nick, target, param)
                 else
                     observer!IrcChat(nick, target, param)

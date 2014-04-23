@@ -266,7 +266,7 @@ class XmppClient(
         
     private def authPlain : String =
         {
-        val clear = "\0" + user + "\0" + pass
+        val clear = "\u0000" + user + "\u0000" + pass
         val tag = "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' " +
             "mechanism='PLAIN'>" + toBase64(clear.getBytes("UTF-8")) + "</auth>"
         tag

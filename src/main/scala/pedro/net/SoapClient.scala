@@ -25,8 +25,7 @@
 
 package pedro.net
 
-import scala.xml.{Elem,XML}
-
+import pedro.data.{Element,XmlReader}
 
 class SoapClient extends pedro.util.Logged
 {
@@ -34,7 +33,7 @@ class SoapClient extends pedro.util.Logged
      * Call this function with the SOAP content part.  Will return the complete
      * serialized message
      */              
-    def wrap(xml: Elem) : String =
+    def wrap(xml: Element) : String =
         {
         val buf = new StringBuilder
         buf.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n")
@@ -50,7 +49,7 @@ class SoapClient extends pedro.util.Logged
     /**
      * Sends the SOAP message, and returns (if successful) the reply.
      */              
-    def sendMessage(host: String, req: Elem) : Option[Elem] =
+    def sendMessage(host: String, req: Element) : Option[Element] =
         {
         val url = new java.net.URL(host)
         val outs = wrap(req).getBytes
@@ -63,7 +62,10 @@ class SoapClient extends pedro.util.Logged
             conn.setRequestProperty("Content-Type", "text/xml")
             conn.getOutputStream.write(outs)
             conn.getOutputStream.close
-            Some(XML.load(conn.getInputStream))
+            val ins = conn.getInputStream
+            val buf = scala.io.Source.fromInputStream(ins).toString
+            val elem = XmlReader.parse(buf)
+            elem
             }
         catch
             {
@@ -81,7 +83,7 @@ object SoapTest
         {
         println("=== test1")
         val host = "https://apitest.authorize.net/soap/v1/Service.asmx"
-        val req  = <IsAlive xmlns="https://api.authorize.net/soap/v1/"/>
+        val req  = XmlReader.parse("<IsAlive xmlns=\"https://api.authorize.net/soap/v1/\"/>").get
         val cli = new SoapClient
         println("##### request:\n" + cli.wrap(req))
         val resp = cli.sendMessage(host, req)
@@ -95,9 +97,10 @@ object SoapTest
         {
         println("=== test2")
         val host = "http://ws.cdyne.com/WeatherWS/Weather.asmx"
-        val req  = <GetCityForecastByZIP xmlns="http://ws.cdyne.com/WeatherWS/">
-                     <ZIP>77058</ZIP>
-                    </GetCityForecastByZIP>
+        val str  = "<GetCityForecastByZIP xmlns=\"http://ws.cdyne.com/WeatherWS/\">" +
+                     "<ZIP>77058</ZIP>" +
+                    "</GetCityForecastByZIP>"
+        val req = XmlReader.parse(str).get
         val cli = new SoapClient
         println("##### request:\n" + cli.wrap(req))
         val resp = cli.sendMessage(host, req)
